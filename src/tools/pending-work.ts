@@ -163,6 +163,39 @@ function capSoulInput(s: unknown): string {
  * http-api health cache) deliberately keep the RAW count — they measure
  * queue depth / 7-day purge risk, not actionability.
  */
+/** Cap on the conversation part of a coalesced_extraction transcript. */
+export const EXTRACTION_TRANSCRIPT_CAP = 30000;
+
+/**
+ * Compose the transcript handed to the extractor: directive preamble first,
+ * then the conversation, with the cap applied to the CONVERSATION only.
+ *
+ * Issue #23: the old code did `transcript.slice(0, CAP - preamble.length)`.
+ * Once the tier-0 preamble grew past CAP (35 rows, ~46k chars) the slice end
+ * went negative, and a negative end makes String.slice drop that many chars
+ * from the END: transcripts under ~16k chars became "" and longer ones lost
+ * their most recent turns, while turn_count still reported the real count.
+ * Every extraction since then was empty or tail-truncated.
+ *
+ * The preamble is never allowed to starve the turns. When the conversation
+ * exceeds the cap, the TAIL is kept (the newest turns carry the handoff
+ * state) and a marker records what was dropped.
+ */
+export function composeExtractionTranscript(
+  preamble: string,
+  transcript: string,
+  cap: number = EXTRACTION_TRANSCRIPT_CAP,
+): string {
+  const budget = Math.max(0, Math.floor(cap));
+  let body = transcript;
+  if (body.length > budget) {
+    const dropped = body.length - budget;
+    const marker = `[... ${dropped} earlier chars omitted; most recent turns follow ...]\n`;
+    body = marker + body.slice(body.length - budget);
+  }
+  return preamble + body;
+}
+
 export async function countActionablePendingWork(store: SurrealStore): Promise<number> {
   if (!store.isAvailable()) return 0;
   const rows = await store.queryFirst<{ work_type: string; n: number }>(
@@ -600,7 +633,7 @@ async function buildWorkPayload(
       const directivePreamble = tier0.length > 0
         ? `ACTIVE RULES (judge compliance against these):\n${tier0.map(d => `[${d.category}] ${d.text}`).join("\n")}\n\n---\n\n`
         : "";
-      const fullTranscript = directivePreamble + transcript.slice(0, 30000 - directivePreamble.length);
+      const fullTranscript = composeExtractionTranscript(directivePreamble, transcript);
       return {
         work_id: item.id,
         work_type: "coalesced_extraction",
