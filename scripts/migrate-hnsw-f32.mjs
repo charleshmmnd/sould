@@ -12,7 +12,7 @@
  * (concept/turn/memory) take the longest. Idempotent — re-running once the
  * index is already F32 is a cheap no-op rebuild.
  *
- * Env: SRC_URL=ws://127.0.0.1:8000/rpc  SURREAL_NS=laqrum  SURREAL_DB=memory
+ * Env: SRC_URL=ws://127.0.0.1:8000/rpc  SURREAL_NS=sould  SURREAL_DB=memory
  *      SURREAL_USER=root  SURREAL_PASS=root  [DRY_RUN=1]
  *   node scripts/migrate-hnsw-f32.mjs
  */
@@ -22,7 +22,7 @@ import { resolveScriptCred } from "./surreal-cred.mjs";
 const SCRIPT_CRED = resolveScriptCred();
 const CFG = {
   url: process.env.SRC_URL || "ws://127.0.0.1:8000/rpc",
-  ns: process.env.SURREAL_NS || "laqrum",
+  ns: process.env.SURREAL_NS || "sould",
   db: process.env.SURREAL_DB || "memory",
   user: SCRIPT_CRED.user,
   pass: SCRIPT_CRED.pass,

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to LaqrumCode are documented here. The 0.7.x series introduced the daemon-split architecture; 0.8.0 will be the first marketplace-ready stable.
+All notable changes to Sould are documented here. The 0.7.x series introduced the daemon-split architecture; 0.8.0 will be the first marketplace-ready stable.
 
 ## [Unreleased]
 
@@ -13,6 +13,7 @@ All notable changes to LaqrumCode are documented here. The 0.7.x series introduc
 - **Rolling tier-0 delivery** (`src/engine/inline-budget.ts`). Directives are delivered in full once per session, highest priority first, in batches bounded by `SOULD_HOOK_MAX_CHARS * 0.6`. Directives delivered on an earlier prompt are re-sent as one-line digests (first sentence), so each prompt still carries a reminder of every rule while the full text stays in the conversation where it was injected. `PostCompact` clears the delivered set so the cycle restarts after the model loses its window. Session state gains `tier0Delivered`.
 - **Hard inline ceiling.** `handleUserPromptSubmit` trims the retrieval tail at a line boundary when the wrapped payload exceeds `SOULD_HOOK_MAX_CHARS` (default 20000), closes any section tag the cut left open, and appends a marker naming how much was dropped. Loss is visible instead of silent.
 - `buildSystemPromptSection` accepts an optional delivery plan; without one it renders the whole set as before.
+- **Rename leftovers.** Twelve maintenance scripts (backup, restore, forget, scrub, compact, dedup, skill migration, benchmarks, credential provisioning and rotation) still defaulted to the `laqrum` namespace and would have run against an empty database on a renamed install; they now default to `sould`. The 0.10.0 brand rewrite had also turned "Hong Kong" into "Hong Laqrum" inside a seeded skill example; fixed. README carries the new Sould mark and banner (`assets/`) in place of the KongCode-era logo, the IDE marketplace path is `charleshmmnd/sould`, plugin and marketplace metadata name the maintainer, and the internal `injectedSections` key for the pillar block is now `pillars`. Lineage names remain only in the changelog, in historical code comments, and in the legacy-migration tooling that has to recognise old installs.
 
 ### Tests
 - `test/inline-budget.test.ts` (14): rolling delivery covers every directive exactly once across prompts and digests all of them afterwards; priority order; tiny-budget floor; post-compaction restart; oversized-entry cap; ceiling trims at a line boundary, closes open tags, never double-closes.

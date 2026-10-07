@@ -38,7 +38,7 @@ const HTTP_BASE = (process.env.SURREAL_URL || "ws://127.0.0.1:8000/rpc")
   .replace(/^ws/, "http").replace(/\/rpc$/, "");
 import { resolveScriptCred } from "./surreal-cred.mjs";
 const { user: USER, pass: PASS } = resolveScriptCred();
-const NS = process.env.SURREAL_NS || "laqrum";
+const NS = process.env.SURREAL_NS || "sould";
 const DB = process.env.SURREAL_DB || "memory";
 const NEW_VERSION = process.env.SOULD_COMPACT_NEW_VERSION || "v3.1.4";
 const PORT = Number(process.env.SOULD_COMPACT_PORT) || 8940;
@@ -206,7 +206,7 @@ async function main() {
   console.log(`    ${TABLES.length} tables;`, JSON.stringify(before).slice(0, 400) + "…");
 
   // ── 2. Logical export over HTTP ──
-  const exportPath = join(STAGE, `laqrum-memory-export.surql`);
+  const exportPath = join(STAGE, `sould-memory-export.surql`);
   console.log(`  [2/6] exporting ${NS}/${DB} → ${exportPath}…`);
   const res = await fetch(`${HTTP_BASE}/export`, {
     headers: {
@@ -234,7 +234,7 @@ async function main() {
   // root-owned bind dir dies with "IO error: Permission denied" — live-hit
   // on the first run, 2026-06-12).
   sh(`sudo docker run --rm -v ${dataDir}:/wipe alpine sh -c "rm -rf /wipe/* /wipe/.[!.]* 2>/dev/null; chmod 777 /wipe; true"`);
-  sh(`sudo docker run -d --name ${SCRATCH} -p 127.0.0.1:${PORT}:8000 -v ${dataDir}:/mydata surrealdb/surrealdb:${NEW_VERSION} start surrealkv:/mydata/laqrumdb --user ${USER} --pass ${PASS}`);
+  sh(`sudo docker run -d --name ${SCRATCH} -p 127.0.0.1:${PORT}:8000 -v ${dataDir}:/mydata surrealdb/surrealdb:${NEW_VERSION} start surrealkv:/mydata/soulddb --user ${USER} --pass ${PASS}`);
   const target = `http://127.0.0.1:${PORT}`;
   // Readiness poll (QA G2: fixed sleep was flaky) — up to 30s.
   let ready = false;

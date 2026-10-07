@@ -18,7 +18,7 @@
  * argv or env echoes — so the daemon-side credential (already on disk, 0600)
  * and the DB-side user converge on the same secret:
  *
- *   ~/.sould/surreal-cred.json  → laqrum_<uid>
+ *   ~/.sould/surreal-cred.json  → sould_<uid>
  *   ~/.kongcode/surreal-cred.json    → kong_<uid>   (skipped when absent)
  *
  * Run with admin credentials via env:
@@ -59,7 +59,7 @@ if (targets.length === 0) {
 }
 
 const admin = new Surreal();
-await admin.connect(URL, { namespace: "laqrum", database: "memory", authentication: { username: ADMIN_USER, password: ADMIN_PASS } });
+await admin.connect(URL, { namespace: "sould", database: "memory", authentication: { username: ADMIN_USER, password: ADMIN_PASS } });
 try {
   for (const t of targets) {
     await admin.query(`DEFINE USER OVERWRITE ${t.cred.user} ON ROOT PASSWORD '${t.cred.pass}' ROLES EDITOR`);
@@ -77,7 +77,7 @@ for (const t of targets) {
     console.log(`verify ${t.cred.user}: signin OK (ns ${t.ns})`);
     const sel = await u.query("SELECT count() AS n FROM turn GROUP ALL").catch(() => [[{ n: "n/a" }]]);
     console.log(`verify ${t.cred.user}: data read OK (turns: ${JSON.stringify(sel[0]?.[0]?.n ?? "n/a")})`);
-    if (t.ns === "laqrum") {
+    if (t.ns === "sould") {
       // The exact statement shape schema-loader replays at daemon boot —
       // IF NOT EXISTS on an existing table is a no-op, so this only proves
       // the EDITOR role permits DDL without touching the schema.

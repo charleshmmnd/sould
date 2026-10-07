@@ -414,7 +414,7 @@ async function initializeStack(getActiveClientCount) {
     // doesn't exist OR SOULD_RERANKER_DISABLED=1, recall falls back to
     // WMR/ACAN scoring without reranking. The model file (~606MB) is
     // downloaded by bootstrap when enabled. Same configuration that hit
-    // 98.2% R@5 on LongMemEval in laqrumclaw.
+    // 98.2% R@5 on LongMemEval in the upstream project.
     if (config.reranker.enabled) {
         if (existsSync(config.reranker.modelPath)) {
             configureReranker(config.reranker.modelPath, resourceProfile);

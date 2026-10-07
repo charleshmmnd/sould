@@ -3,7 +3,8 @@
   "version": "0.10.1",
   "description": "Graph-backed persistent memory engine with SurrealDB + BGE-M3 embeddings. Gives Claude Code permanent memory that learns across sessions.",
   "author": {
-    "name": "VoidOrigin"
+    "name": "Charles Hammond",
+    "url": "https://sould.dev"
   },
   "mcpServers": "./.claude-plugin/mcp.json"
 }

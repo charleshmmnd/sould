@@ -9,7 +9,7 @@
  *   SURREAL_URL   — default ws://127.0.0.1:8000/rpc
  *   SURREAL_USER  — default root
  *   SURREAL_PASS  — default root
- *   SURREAL_NS    — default laqrum
+ *   SURREAL_NS    — default sould
  *   SURREAL_DB    — default memory
  *   SOULD_BACKUP_DIR — default ./sould-backup-YYYYMMDD-HHMM/
  */
@@ -36,7 +36,7 @@ async function readSchemaVersion() {
 const URL = process.env.SURREAL_URL || "ws://127.0.0.1:8000/rpc";
 import { resolveScriptCred } from "./surreal-cred.mjs";
 const { user: USER, pass: PASS } = resolveScriptCred();
-const NS = process.env.SURREAL_NS || "laqrum";
+const NS = process.env.SURREAL_NS || "sould";
 const DB = process.env.SURREAL_DB || "memory";
 
 const STAMP = new Date().toISOString().replace(/[:.]/g, "-").replace(/T/, "_").slice(0, 17);

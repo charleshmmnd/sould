@@ -32,7 +32,7 @@ const SCRIPT_CRED = resolveScriptCred();
 const s = new Surreal();
 await s.connect("ws://127.0.0.1:8000/rpc");
 await s.signin({ username: SCRIPT_CRED.user, password: SCRIPT_CRED.pass });
-await s.use({ namespace: "laqrum", database: "memory" });
+await s.use({ namespace: "sould", database: "memory" });
 console.error("loading concept corpus...");
 const rows = (await s.query("SELECT meta::id(id) AS id, content, embedding FROM concept WHERE embedding != NONE AND content != NONE AND superseded_at IS NONE"))?.[0] || [];
 const corpusN = rows.length;

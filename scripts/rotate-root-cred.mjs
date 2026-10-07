@@ -45,7 +45,7 @@ console.log(`new admin secret persisted to ${ADMIN_CRED_PATH} (0600)`);
 
 // 3: rotate.
 const admin = new Surreal();
-await admin.connect(URL, { namespace: "laqrum", database: "memory", authentication: { username: OLD_USER, password: OLD_PASS } });
+await admin.connect(URL, { namespace: "sould", database: "memory", authentication: { username: OLD_USER, password: OLD_PASS } });
 try {
   await admin.query(`DEFINE USER OVERWRITE root ON ROOT PASSWORD '${newPass}' ROLES OWNER`);
   console.log("root credential rotated (DEFINE USER OVERWRITE root ON ROOT ... ROLES OWNER)");
@@ -55,7 +55,7 @@ try {
 const old = new Surreal();
 let oldWorks = false;
 try {
-  await old.connect(URL, { namespace: "laqrum", database: "memory", authentication: { username: "root", password: "root" } });
+  await old.connect(URL, { namespace: "sould", database: "memory", authentication: { username: "root", password: "root" } });
   await old.query("RETURN 1");
   oldWorks = true;
 } catch { /* expected */ }
@@ -68,7 +68,7 @@ console.log("verify: old root/root default now REJECTED");
 
 // 4b: the new admin credential works.
 const fresh = new Surreal();
-await fresh.connect(URL, { namespace: "laqrum", database: "memory", authentication: { username: "root", password: newPass } });
+await fresh.connect(URL, { namespace: "sould", database: "memory", authentication: { username: "root", password: newPass } });
 try {
   await fresh.query("RETURN 1");
   console.log("verify: new admin credential signs in (OWNER)");
@@ -79,7 +79,7 @@ const credPath = homedir() + "/.sould/surreal-cred.json";
 if (existsSync(credPath)) {
   const c = JSON.parse(readFileSync(credPath, "utf8"));
   const u = new Surreal();
-  await u.connect(URL, { namespace: "laqrum", database: "memory", authentication: { username: c.user, password: c.pass } });
+  await u.connect(URL, { namespace: "sould", database: "memory", authentication: { username: c.user, password: c.pass } });
   try {
     await u.query("RETURN 1");
     console.log(`verify: scoped daemon user '${c.user}' unaffected`);

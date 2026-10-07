@@ -2,11 +2,11 @@
 
 # Sould
 
-![Sould](souldLogoV4.png)
+![Sould](assets/sould-banner.png)
 
-[![VoidOrigin](https://img.shields.io/badge/VOIDORIGIN-voidorigin.com-0a0a0a?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIHN0cm9rZT0iI2ZmNmIzNSIgc3Ryb2tlLXdpZHRoPSIyIi8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iNCIgZmlsbD0iI2ZmNmIzNSIvPjwvc3ZnPg==&logoColor=ff6b35&labelColor=0a0a0a)](https://voidorigin.com)
+[![sould.dev](https://img.shields.io/badge/sould.dev-home-141229?style=for-the-badge&labelColor=e9b44c&color=141229)](https://sould.dev)
 
-[![Version](https://img.shields.io/badge/v0.10.0-stable-22c55e?style=for-the-badge)](https://github.com/charleshmmnd/sould)
+[![Version](https://img.shields.io/badge/v0.10.1-stable-22c55e?style=for-the-badge)](https://github.com/charleshmmnd/sould)
 [![GitHub Stars](https://img.shields.io/github/stars/charleshmmnd/sould?style=for-the-badge&logo=github&color=gold)](https://github.com/charleshmmnd/sould)
 [![License: MIT](https://img.shields.io/github/license/charleshmmnd/sould?style=for-the-badge&logo=opensourceinitiative&color=blue)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
@@ -67,7 +67,7 @@ The plugin system is shared across CLI and IDE extensions. Open a Claude Code se
 
 1. Type `/plugins` and press Enter (shows **Manage Plugins**)
 2. Go to the **Marketplaces** tab
-3. Type `42u/sould` in the input field and click **Add**
+3. Type `charleshmmnd/sould` in the input field and click **Add**
 
    ![Add the sould marketplace](docs/vscode-marketplace-add.png)
 
@@ -227,7 +227,7 @@ Sould runs as **two cooperating processes**:
 
 **ACAN** (Attentive Cross-Attention Network) is a learned scoring model that replaces the fixed WMR (Weighted Memory Relevance) heuristic once enough retrieval-outcome data accumulates. It trains on query-memory pairs labeled by actual utilization — whether the retrieved item was referenced, cited, or acted on. Training runs in a worker thread; weights are hot-reloaded across concurrent sessions via a shared JSON file. Before ACAN activates, WMR provides a solid baseline using seven weighted signals: cosine similarity (largest weight), recency, importance, access count, neighbor bonus, proven utility, and reflection boost.
 
-**BGE-reranker-v2-m3** is a cross-encoder that rescores the top candidates pairwise against the query after the initial vector + ACAN pass. The two-stage retrieve-then-rerank pipeline is modeled on the design validated at 98.2% R@5 on LongMemEval in the upstream laqrumclaw project; the eval harness for this number ships separately and is not bundled in this repo.
+**BGE-reranker-v2-m3** is a cross-encoder that rescores the top candidates pairwise against the query after the initial vector + ACAN pass. The two-stage retrieve-then-rerank pipeline is modeled on the design validated at 98.2% R@5 on LongMemEval in the upstream project this plugin descends from; the eval harness for this number ships separately and is not bundled in this repo.
 
 Multiple Claude Code sessions share one daemon: one BGE-M3 in RAM instead of N copies, one SurrealDB connection pool.
 
@@ -346,7 +346,7 @@ Before each prompt, Sould runs a multi-stage retrieval pipeline to surface the m
 
 1. **Vector search** — BGE-M3 embeds the prompt and retrieves candidates by cosine similarity from concepts, memories, turns, artifacts, and skills
 2. **WMR/ACAN scoring** — a 7-signal Weighted Memory Relevance score (cosine similarity, recency, importance, access frequency, neighbor bonus, proven utility, reflection boost) is computed per candidate. When enough retrieval-outcome data has accumulated (5000+ labeled pairs), the learned ACAN (Attentive Cross-Attention Network) weights replace the fixed WMR weights automatically
-3. **Cross-encoder rerank** — the top candidates are rescored pairwise against the query using a BGE-reranker-v2-m3 cross-encoder (~606 MB GGUF, loaded lazily on first retrieval). The two-stage retrieve-then-rerank design is modeled on the upstream laqrumclaw project, which measured 98.2% R@5 on LongMemEval; the eval harness is not bundled in this repo. Falls back to WMR/ACAN-only when the model isn't available
+3. **Cross-encoder rerank** — the top candidates are rescored pairwise against the query using a BGE-reranker-v2-m3 cross-encoder (~606 MB GGUF, loaded lazily on first retrieval). The two-stage retrieve-then-rerank design is modeled on the upstream project this plugin descends from, which measured 98.2% R@5 on LongMemEval; the eval harness is not bundled in this repo. Falls back to WMR/ACAN-only when the model isn't available
 4. **Graph expansion** — each top-scored node's graph neighbors (broader/narrower/related_to edges, causal chains, skill links) are pulled in
 5. **Dedup + budget trim** — duplicates are collapsed and the final set is trimmed to fit the context budget
 6. **Format + inject** — results are assembled into `<recalled_memory>` blocks and injected into the conversation

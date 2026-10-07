@@ -20,7 +20,7 @@
  * items HNSW never surfaced (that needs a held-out qrel set). Treat the absolute
  * numbers as a baseline to move, not ground truth.
  *
- * Env: SRC_URL, SURREAL_NS=laqrum, SURREAL_DB=memory, SURREAL_USER, SURREAL_PASS,
+ * Env: SRC_URL, SURREAL_NS=sould, SURREAL_DB=memory, SURREAL_USER, SURREAL_PASS,
  *      REL_THRESHOLD=0.5 (utilization >= this counts as "relevant" for MRR/Recall),
  *      K=10
  *   node scripts/retrieval-benchmark.mjs

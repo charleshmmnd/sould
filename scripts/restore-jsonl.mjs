@@ -29,7 +29,7 @@
  *   SURREAL_URL   — default ws://127.0.0.1:8000/rpc
  *   SURREAL_USER  — default root
  *   SURREAL_PASS  — default root
- *   SURREAL_NS    — default laqrum
+ *   SURREAL_NS    — default sould
  *   SURREAL_DB    — default memory
  */
 

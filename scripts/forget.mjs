@@ -31,7 +31,7 @@ import { Surreal } from "/home/zero/voidorigin/sould/node_modules/surrealdb/dist
 const URL = process.env.SURREAL_URL || "ws://127.0.0.1:8000/rpc";
 import { resolveScriptCred } from "./surreal-cred.mjs";
 const { user: USER, pass: PASS } = resolveScriptCred();
-const NS = process.env.SURREAL_NS || "laqrum";
+const NS = process.env.SURREAL_NS || "sould";
 const DB = process.env.SURREAL_DB || "memory";
 
 const argv = process.argv.slice(2);

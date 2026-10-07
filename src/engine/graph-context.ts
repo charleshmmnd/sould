@@ -1400,14 +1400,14 @@ async function formatContextMessage(
 
   // Pillar context — structural IDs only (architecture description is unnecessary token spend)
   // Skip if model already has it in the conversation window (claw-code static section dedup)
-  if (!session.injectedSections.has("ilaqrum")) {
+  if (!session.injectedSections.has("pillars")) {
     const pillarLines: string[] = [];
     if (session.agentId) pillarLines.push(`Agent: ${session.agentId}`);
     if (session.projectId) pillarLines.push(`Project: ${session.projectId}`);
     if (session.taskId) pillarLines.push(`Task: ${session.taskId}`);
     if (pillarLines.length > 0) {
       sections.push(`GRAPH PILLARS: ${pillarLines.join(" | ")}`);
-      session.injectedSections.add("ilaqrum");
+      session.injectedSections.add("pillars");
     }
   }
 
@@ -1939,7 +1939,7 @@ export async function graphTransformContext(
     systemPromptSection = buildSystemPromptSection(session, tier0ForSys, plan);
     // Mark sections as injected so formatContextMessage() skips them (prevents duplication)
     if (systemPromptSection) {
-      if (systemPromptSection.includes("GRAPH PILLARS")) session.injectedSections.add("ilaqrum");
+      if (systemPromptSection.includes("GRAPH PILLARS")) session.injectedSections.add("pillars");
       if (systemPromptSection.includes("CORE DIRECTIVES")) session.injectedSections.add("tier0");
     }
   } catch { /* non-critical — tier0 will still appear in user message */ }

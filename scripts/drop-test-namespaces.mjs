@@ -2,7 +2,7 @@
 /**
  * Drop ONLY the ephemeral vitest temp namespaces + the old-brand test ns from
  * the target SurrealDB instance. Targets: kctest_* and kong_test.
- * NEVER touches kong / laqrum / sould_test / main.
+ * NEVER touches sould / kong / laqrum / sould_test / main.
  *
  * LAQ-SEC-007 rewrite of the old drop-test-namespaces.sh, which used
  * `curl -u root:root` — a credential the hardening rotated away, passed via
@@ -18,7 +18,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 
 const URL = process.env.SURREAL_URL || "ws://localhost:8000/rpc";
-const KEEP = new Set(["kong", "laqrum", "sould_test", "main"]);
+const KEEP = new Set(["sould", "kong", "laqrum", "sould_test", "main"]);
 const TARGET_RE = /^(kctest_[A-Za-z0-9_]+|kong_test)$/;
 
 function adminCred() {
@@ -36,7 +36,7 @@ function adminCred() {
 
 const cred = adminCred();
 const db = new Surreal();
-await db.connect(URL, { namespace: "laqrum", database: "memory", authentication: { username: cred.user, password: cred.pass } });
+await db.connect(URL, { namespace: "sould", database: "memory", authentication: { username: cred.user, password: cred.pass } });
 try {
   const info = await db.query("INFO FOR ROOT");
   const all = Object.keys(info[0]?.namespaces ?? {});

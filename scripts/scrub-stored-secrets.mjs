@@ -27,7 +27,7 @@ import { Surreal } from "surrealdb";
 import { resolveScriptCred } from "./surreal-cred.mjs";
 
 const URL = process.env.SURREAL_URL || "ws://localhost:8000/rpc";
-const NS = process.env.SURREAL_NS || "laqrum";
+const NS = process.env.SURREAL_NS || "sould";
 const DB = process.env.SURREAL_DB || "memory";
 const PLACEHOLDER = "[redacted-secret-pattern]";
 

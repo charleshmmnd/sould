@@ -1243,7 +1243,7 @@ async function formatContextMessage(nodes, store, session, skillContext = "", ti
     const sections = [];
     // Pillar context — structural IDs only (architecture description is unnecessary token spend)
     // Skip if model already has it in the conversation window (claw-code static section dedup)
-    if (!session.injectedSections.has("ilaqrum")) {
+    if (!session.injectedSections.has("pillars")) {
         const pillarLines = [];
         if (session.agentId)
             pillarLines.push(`Agent: ${session.agentId}`);
@@ -1253,7 +1253,7 @@ async function formatContextMessage(nodes, store, session, skillContext = "", ti
             pillarLines.push(`Task: ${session.taskId}`);
         if (pillarLines.length > 0) {
             sections.push(`GRAPH PILLARS: ${pillarLines.join(" | ")}`);
-            session.injectedSections.add("ilaqrum");
+            session.injectedSections.add("pillars");
         }
     }
     // 0.7.45: directive sections wrapped in semantic XML per Anthropic's
@@ -1722,7 +1722,7 @@ export async function graphTransformContext(params) {
         // Mark sections as injected so formatContextMessage() skips them (prevents duplication)
         if (systemPromptSection) {
             if (systemPromptSection.includes("GRAPH PILLARS"))
-                session.injectedSections.add("ilaqrum");
+                session.injectedSections.add("pillars");
             if (systemPromptSection.includes("CORE DIRECTIVES"))
                 session.injectedSections.add("tier0");
         }

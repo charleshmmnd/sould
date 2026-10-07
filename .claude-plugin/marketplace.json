@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Sould: graph-backed persistent memory for Claude Code",
   "owner": {
-    "name": "VoidOrigin"
+    "name": "Charles Hammond",
+    "url": "https://sould.dev"
   },
   "plugins": [
     {
