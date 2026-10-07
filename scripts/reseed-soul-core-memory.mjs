@@ -15,6 +15,11 @@
  * Usage
  *   node scripts/reseed-soul-core-memory.mjs            # dry-run: show what would be seeded
  *   node scripts/reseed-soul-core-memory.mjs --apply    # seed
+ *
+ * The daemon-managed SurrealDB listens on a daemon-chosen port with the
+ * credentials in <cacheDir>/surreal-cred.json, so point the script at it the
+ * way config.ts already allows: SURREAL_URL=ws://127.0.0.1:<port>/rpc with
+ * SURREAL_USER and SURREAL_PASS from that file (never echo them).
  */
 import { parsePluginConfig } from "../dist/engine/config.js";
 import { SurrealStore } from "../dist/engine/surreal.js";
