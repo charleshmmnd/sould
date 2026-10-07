@@ -11,7 +11,7 @@ import type {
 } from "./types.js";
 import type { SurrealStore, VectorSearchResult, CoreMemoryEntry } from "./surreal.js";
 import { windowSoulText } from "./soul-text.js";
-import { planTier0Delivery, digestLine, tier0FullBudgetChars, resolveHookInlineMaxChars, type Tier0Plan } from "./inline-budget.js";
+import { planTier0Delivery, digestLine, tier0FullBudgetChars, resolveHookInlineMaxChars, TIER0_DIGEST_MAX, type Tier0Plan } from "./inline-budget.js";
 import type { EmbeddingService } from "./embeddings.js";
 import type { SessionState } from "./state.js";
 import { getPendingDirectives, clearPendingDirectives, getSessionContinuity, getSuppressedNodeIds } from "./cognitive-check.js";
@@ -1303,14 +1303,21 @@ function buildSystemPromptSection(session: SessionState, tier0Entries: CoreMemor
   }
   const t0Section = formatTierSection(plan.full, "CORE DIRECTIVES (always loaded, never evicted)");
   if (t0Section) parts.push(t0Section);
-  const reminders = [...plan.digest, ...plan.deferred];
+  // Reminders: the top few already-delivered directives, one line each.
+  // `plan.digest` arrives priority DESC, so slicing keeps the most important.
+  const reminders = plan.digest.slice(0, TIER0_DIGEST_MAX);
+  const notes: string[] = [];
   if (reminders.length > 0) {
     const lines = reminders.map(e => `  - ${stripStructuralTags(digestLine(e.text))}`);
-    const head = plan.digest.length > 0 && plan.deferred.length === 0
-      ? `CORE DIRECTIVES DELIVERED IN FULL EARLIER THIS SESSION (${plan.digest.length}; the full text is already in your context, one-line reminders follow)`
-      : `CORE DIRECTIVES IN BRIEF (${reminders.length}; ${plan.digest.length} were delivered in full earlier this session, ${plan.deferred.length} arrive in full on the next prompt)`;
-    parts.push(`${head}:\n${lines.join("\n")}`);
+    const more = plan.digest.length - reminders.length;
+    const head = `CORE DIRECTIVES IN BRIEF (top ${reminders.length} of ${plan.digest.length} delivered in full earlier in this conversation` +
+      (more > 0 ? `; the other ${more} are above in full as well` : "") + `)`;
+    notes.push(`${head}:\n${lines.join("\n")}`);
   }
+  if (plan.deferred.length > 0) {
+    notes.push(`${plan.deferred.length} more core directive${plan.deferred.length === 1 ? "" : "s"} arrive in full on the next prompts.`);
+  }
+  if (notes.length > 0) parts.push(notes.join("\n"));
   return parts.length > 0 ? parts.join("\n\n") : undefined;
 }
 

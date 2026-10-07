@@ -27,9 +27,10 @@ function rule(i: number, chars: number): CoreMemoryEntry {
 }
 
 describe("resolveHookInlineMaxChars", () => {
-  it("defaults below the observed persist threshold", () => {
+  it("defaults just under the client's 8,000-char additionalContext cap", () => {
     expect(resolveHookInlineMaxChars({})).toBe(DEFAULT_HOOK_INLINE_MAX_CHARS);
-    expect(DEFAULT_HOOK_INLINE_MAX_CHARS).toBeLessThan(29_000);
+    expect(DEFAULT_HOOK_INLINE_MAX_CHARS).toBeLessThan(8_000);
+    expect(DEFAULT_HOOK_INLINE_MAX_CHARS).toBeGreaterThan(6_000);
   });
   it("honours a sane override and ignores junk or dangerously small values", () => {
     expect(resolveHookInlineMaxChars({ SOULD_HOOK_MAX_CHARS: "24000" })).toBe(24_000);
@@ -38,9 +39,9 @@ describe("resolveHookInlineMaxChars", () => {
     expect(resolveHookInlineMaxChars({ SOULD_HOOK_MAX_CHARS: String(MIN_HOOK_INLINE_MAX_CHARS) })).toBe(MIN_HOOK_INLINE_MAX_CHARS);
   });
   it("full-text directive budget leaves room for retrieval", () => {
-    const b = tier0FullBudgetChars(20_000);
-    expect(b).toBeGreaterThan(8_000);
-    expect(b).toBeLessThan(14_000);
+    const b = tier0FullBudgetChars(DEFAULT_HOOK_INLINE_MAX_CHARS);
+    expect(b).toBeGreaterThan(3_000);
+    expect(b).toBeLessThan(5_000);
   });
 });
 
@@ -63,10 +64,10 @@ describe("planTier0Delivery rolls full text across prompts", () => {
   const rules = Array.from({ length: 44 }, (_, i) => rule(i + 1, 550));
   it("delivers every directive in full exactly once, then digests all of them", () => {
     const delivered = new Set<string>();
-    const budget = tier0FullBudgetChars(20_000);
+    const budget = tier0FullBudgetChars(DEFAULT_HOOK_INLINE_MAX_CHARS);
     const seenFull = new Set<string>();
     let prompts = 0;
-    for (; prompts < 10; prompts++) {
+    for (; prompts < 20; prompts++) {
       const plan = planTier0Delivery(rules, delivered, budget);
       expect(plan.usedChars).toBeLessThanOrEqual(budget);
       for (const e of plan.full) {
@@ -79,7 +80,7 @@ describe("planTier0Delivery rolls full text across prompts", () => {
     }
     expect(seenFull.size).toBe(44);
     expect(prompts).toBeGreaterThanOrEqual(2); // 44 x 550 chars cannot fit one prompt
-    expect(prompts).toBeLessThanOrEqual(4);
+    expect(prompts).toBeLessThanOrEqual(10);
     const steady = planTier0Delivery(rules, delivered, budget);
     expect(steady.full).toHaveLength(0);
     expect(steady.digest).toHaveLength(44);

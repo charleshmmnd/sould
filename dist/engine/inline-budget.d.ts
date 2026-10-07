@@ -25,22 +25,32 @@
  *     line boundary, any section tag left open is closed, and a marker names
  *     how much was dropped so the loss is visible instead of silent.
  *
- * The exact harness threshold is not published; 29.1 KB payloads were
- * persisted, so the default ceiling sits well below that. Override with
- * `SOULD_HOOK_MAX_CHARS`.
+ * The harness limit is in the Claude Code client itself: hook output fields
+ * are capped per field, and `additionalContext` is capped at 8,000
+ * characters; above that the output is persisted to a file instead of
+ * being shown. Confirmed live: a 15,973-char payload was persisted after
+ * the first cut from 30 K. The default ceiling therefore sits just under
+ * 8,000, and the wrapper legend (about 700 chars) is inside it. Override
+ * with `SOULD_HOOK_MAX_CHARS` if a future client raises the cap.
  */
 import type { CoreMemoryEntry } from "./surreal.js";
 /** Default ceiling for one hook payload, in characters. */
-export declare const DEFAULT_HOOK_INLINE_MAX_CHARS = 20000;
+export declare const DEFAULT_HOOK_INLINE_MAX_CHARS = 7600;
 /** Smallest ceiling accepted from the environment; anything lower would not
  *  fit the wrapper legend plus a single directive. */
-export declare const MIN_HOOK_INLINE_MAX_CHARS = 4000;
+export declare const MIN_HOOK_INLINE_MAX_CHARS = 2000;
 /** Share of the ceiling that one prompt may spend on full-text directives. */
-export declare const TIER0_FULL_SHARE = 0.6;
+export declare const TIER0_FULL_SHARE = 0.55;
+/** At most this many already-delivered directives are re-sent as one-line
+ *  reminders per prompt (highest priority first). With an 8 K cap, a digest
+ *  of every directive would eat the whole budget on a mature graph; the
+ *  full text of the rest is still in the conversation where it was first
+ *  injected. */
+export declare const TIER0_DIGEST_MAX = 8;
 /** A single directive never occupies more than this in a full-text batch. */
 export declare const TIER0_FULL_ITEM_CAP = 4000;
 /** Length of a digest line for an already-delivered directive. */
-export declare const TIER0_DIGEST_CHARS = 120;
+export declare const TIER0_DIGEST_CHARS = 100;
 export declare function resolveHookInlineMaxChars(env?: NodeJS.ProcessEnv): number;
 export declare function tier0FullBudgetChars(ceiling: number): number;
 /** First sentence of a directive, on one line, capped. The imperative of a

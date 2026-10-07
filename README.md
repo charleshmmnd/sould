@@ -308,7 +308,7 @@ All env vars are optional with sensible defaults.
 |----------|---------|-------------|
 | `SOULD_SKIP_BOOTSTRAP` | `0` | Set `1` to skip first-run provisioning entirely |
 | `SOULD_DAEMON_IDLE_TIMEOUT_MS` | `6000` | Daemon exits after last client disconnects. Set `0` to disable. |
-| `SOULD_HOOK_MAX_CHARS` | `20000` | Ceiling for one prompt's injected context. Claude Code persists larger hook output to a file with a 2 KB preview, so anything above the ceiling never reaches the model. Tier-0 directives are delivered in full once per session in batches under this ceiling, then as one-line digests. |
+| `SOULD_HOOK_MAX_CHARS` | `7600` | Ceiling for one prompt's injected context. Claude Code caps hook `additionalContext` at 8,000 characters and persists anything larger to a file with a 2 KB preview, so it never reaches the model. Tier-0 directives are delivered in full once per session in batches under this ceiling, then the top few as one-line reminders. |
 | `SOULD_DAEMON_TRANSPORT` | `unix` | Set `tcp` for loopback TCP (Windows) |
 | `SOULD_NODE_LLAMA_CPP_PATH` | (auto) | Override path to node-llama-cpp install |
 | `SOULD_LEGACY_MONOLITH` | `0` | Set `1` for pre-0.7.0 single-process mode (emergency rollback) |
