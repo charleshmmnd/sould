@@ -4,6 +4,8 @@ All notable changes to LaqrumCode are documented here. The 0.7.x series introduc
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-07
+
 ### Fixed
 - **The soul reached the model one entry per section.** Seeded Tier-0 soul rows were joined with "; ", which entries also contain, and the injector cut each row at its per-item cap, so with 20 entries in a section only the first one was ever loaded (observed 2026-10-07: every turn for months showed the same three sentences). Rows are now joined on a separator that cannot occur inside an entry (`SOUL_ENTRY_SEPARATOR`, soul-text.ts) and `applyCoreBudgetVerbose` renders soul rows with `windowSoulText`, which shows whole entries with `(k/n)` markers and rotates the starting entry every five minutes, so a session walks the whole section. Rows seeded before this are split by a capital-letter heuristic until the next evolution re-seeds them; `scripts/reseed-soul-core-memory.mjs` re-seeds on demand.
 - **Soul revisions recorded nothing but "Updated <section>".** A revision now carries `removed` and `added` (entry text, up to 8 each, 600 chars) from `diffSoulSection`, and its `change` line counts them, so what an evolution replaced is never lost again. The values engraved on 2026-08-23 had been replaced by later evolutions with no record of what they said. Schema: `revisions.*.removed` / `revisions.*.added` (optional).
