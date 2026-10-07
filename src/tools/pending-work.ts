@@ -181,6 +181,23 @@ export const EXTRACTION_TRANSCRIPT_CAP = 30000;
  * exceeds the cap, the TAIL is kept (the newest turns carry the handoff
  * state) and a marker records what was dropped.
  */
+/** Per-entry caps for the ACTIVE RULES preamble handed to the extractor.
+ *  Soul rows are whole soul sections (15 K to 32 K chars each on a mature
+ *  graph); three of them made the preamble about 100 K chars on
+ *  2026-10-07, so the extractor read rules and soul and little else. */
+export const PREAMBLE_RULE_CHARS = 1000;
+export const PREAMBLE_SOUL_CHARS = SOUL_INPUT_TEXT_CAP;
+
+export function buildDirectivePreamble(tier0: Array<{ category: string; text: string }>): string {
+  if (tier0.length === 0) return "";
+  const lines = tier0.map(d => {
+    const cap = d.category === "soul" ? PREAMBLE_SOUL_CHARS : PREAMBLE_RULE_CHARS;
+    const t = String(d.text ?? "");
+    return `[${d.category}] ${t.length > cap ? t.slice(0, cap - 3) + "..." : t}`;
+  });
+  return `ACTIVE RULES (judge compliance against these):\n${lines.join("\n")}\n\n---\n\n`;
+}
+
 export function composeExtractionTranscript(
   preamble: string,
   transcript: string,
@@ -630,9 +647,7 @@ async function buildWorkPayload(
       );
       // Include Tier 0 directives so the LLM can judge rules compliance
       const tier0 = await store.getAllCoreMemory(0).catch(() => []);
-      const directivePreamble = tier0.length > 0
-        ? `ACTIVE RULES (judge compliance against these):\n${tier0.map(d => `[${d.category}] ${d.text}`).join("\n")}\n\n---\n\n`
-        : "";
+      const directivePreamble = buildDirectivePreamble(tier0);
       const fullTranscript = composeExtractionTranscript(directivePreamble, transcript);
       return {
         work_id: item.id,

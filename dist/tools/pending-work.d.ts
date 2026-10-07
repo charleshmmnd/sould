@@ -32,6 +32,34 @@ import { type SurrealStore } from "../engine/surreal.js";
  * http-api health cache) deliberately keep the RAW count — they measure
  * queue depth / 7-day purge risk, not actionability.
  */
+/** Cap on the conversation part of a coalesced_extraction transcript. */
+export declare const EXTRACTION_TRANSCRIPT_CAP = 30000;
+/**
+ * Compose the transcript handed to the extractor: directive preamble first,
+ * then the conversation, with the cap applied to the CONVERSATION only.
+ *
+ * Issue #23: the old code did `transcript.slice(0, CAP - preamble.length)`.
+ * Once the tier-0 preamble grew past CAP (35 rows, ~46k chars) the slice end
+ * went negative, and a negative end makes String.slice drop that many chars
+ * from the END: transcripts under ~16k chars became "" and longer ones lost
+ * their most recent turns, while turn_count still reported the real count.
+ * Every extraction since then was empty or tail-truncated.
+ *
+ * The preamble is never allowed to starve the turns. When the conversation
+ * exceeds the cap, the TAIL is kept (the newest turns carry the handoff
+ * state) and a marker records what was dropped.
+ */
+/** Per-entry caps for the ACTIVE RULES preamble handed to the extractor.
+ *  Soul rows are whole soul sections (15 K to 32 K chars each on a mature
+ *  graph); three of them made the preamble about 100 K chars on
+ *  2026-10-07, so the extractor read rules and soul and little else. */
+export declare const PREAMBLE_RULE_CHARS = 1000;
+export declare const PREAMBLE_SOUL_CHARS = 600;
+export declare function buildDirectivePreamble(tier0: Array<{
+    category: string;
+    text: string;
+}>): string;
+export declare function composeExtractionTranscript(preamble: string, transcript: string, cap?: number): string;
 export declare function countActionablePendingWork(store: SurrealStore): Promise<number>;
 export declare function handleFetchPendingWork(state: GlobalPluginState, _session: SessionState, _args: Record<string, unknown>): Promise<{
     content: Array<{

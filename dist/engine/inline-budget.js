@@ -33,6 +33,7 @@
  * 8,000, and the wrapper legend (about 700 chars) is inside it. Override
  * with `SOULD_HOOK_MAX_CHARS` if a future client raises the cap.
  */
+import { windowSoulText } from "./soul-text.js";
 /** Default ceiling for one hook payload, in characters. */
 export const DEFAULT_HOOK_INLINE_MAX_CHARS = 7_600;
 /** Smallest ceiling accepted from the environment; anything lower would not
@@ -50,6 +51,17 @@ export const TIER0_DIGEST_MAX = 8;
 export const TIER0_FULL_ITEM_CAP = 4_000;
 /** Length of a digest line for an already-delivered directive. */
 export const TIER0_DIGEST_CHARS = 100;
+/** A soul row holds a whole soul section (15 K to 32 K chars on a mature
+ *  graph). It is delivered as one window of this size, rotated the same way
+ *  the budgeted render path rotates it (soul-text.ts), never as raw text. */
+export const TIER0_SOUL_WINDOW_CHARS = 800;
+/** Stable string key for an entry. `SELECT *` hands back `id` as a RecordId
+ *  object, and two queries yield two distinct objects for the same row, so a
+ *  Set keyed on the raw id never matches. This is the bug that made the
+ *  first 0.10.1 build re-send the same top batch on every prompt. */
+export function entryKey(e) {
+    return String(e.id);
+}
 export function resolveHookInlineMaxChars(env = process.env) {
     const raw = Number(env.SOULD_HOOK_MAX_CHARS);
     if (Number.isFinite(raw) && raw >= MIN_HOOK_INLINE_MAX_CHARS)
@@ -91,28 +103,30 @@ export function planTier0Delivery(entries, delivered, budgetChars) {
     const digest = [];
     const deferred = [];
     let used = 0;
+    const soulSeed = Math.floor(Date.now() / 300_000);
     for (const e of entries) {
-        if (delivered.has(e.id)) {
+        const key = entryKey(e);
+        if (delivered.has(key)) {
             digest.push(e);
             continue;
         }
-        const text = e.text.length > TIER0_FULL_ITEM_CAP ? e.text.slice(0, TIER0_FULL_ITEM_CAP - 3) + "..." : e.text;
+        let text;
+        if (e.category === "soul" && e.text.length > TIER0_SOUL_WINDOW_CHARS) {
+            text = windowSoulText(e.text, TIER0_SOUL_WINDOW_CHARS, soulSeed + e.text.length);
+        }
+        else {
+            text = e.text.length > TIER0_FULL_ITEM_CAP ? e.text.slice(0, TIER0_FULL_ITEM_CAP - 3) + "..." : e.text;
+        }
         const cost = text.length + 6;
         if (used + cost > budgetChars && full.length > 0) {
             deferred.push(e);
             continue;
         }
-        if (used + cost > budgetChars) {
-            // Nothing fits at all (tiny budget): still deliver the top entry so a
-            // prompt is never without its highest-priority rule.
-            full.push(text === e.text ? e : { ...e, text });
-            used += cost;
-            delivered.add(e.id);
-            continue;
-        }
+        // When nothing fits at all (tiny budget) the top entry still goes out,
+        // so a prompt is never without its highest-priority rule.
         full.push(text === e.text ? e : { ...e, text });
         used += cost;
-        delivered.add(e.id);
+        delivered.add(key);
     }
     return { full, digest, deferred, usedChars: used, budgetChars };
 }

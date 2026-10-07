@@ -51,6 +51,15 @@ export declare const TIER0_DIGEST_MAX = 8;
 export declare const TIER0_FULL_ITEM_CAP = 4000;
 /** Length of a digest line for an already-delivered directive. */
 export declare const TIER0_DIGEST_CHARS = 100;
+/** A soul row holds a whole soul section (15 K to 32 K chars on a mature
+ *  graph). It is delivered as one window of this size, rotated the same way
+ *  the budgeted render path rotates it (soul-text.ts), never as raw text. */
+export declare const TIER0_SOUL_WINDOW_CHARS = 800;
+/** Stable string key for an entry. `SELECT *` hands back `id` as a RecordId
+ *  object, and two queries yield two distinct objects for the same row, so a
+ *  Set keyed on the raw id never matches. This is the bug that made the
+ *  first 0.10.1 build re-send the same top batch on every prompt. */
+export declare function entryKey(e: CoreMemoryEntry): string;
 export declare function resolveHookInlineMaxChars(env?: NodeJS.ProcessEnv): number;
 export declare function tier0FullBudgetChars(ceiling: number): number;
 /** First sentence of a directive, on one line, capped. The imperative of a

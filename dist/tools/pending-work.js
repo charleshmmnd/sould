@@ -137,6 +137,49 @@ function capSoulInput(s) {
  * http-api health cache) deliberately keep the RAW count — they measure
  * queue depth / 7-day purge risk, not actionability.
  */
+/** Cap on the conversation part of a coalesced_extraction transcript. */
+export const EXTRACTION_TRANSCRIPT_CAP = 30000;
+/**
+ * Compose the transcript handed to the extractor: directive preamble first,
+ * then the conversation, with the cap applied to the CONVERSATION only.
+ *
+ * Issue #23: the old code did `transcript.slice(0, CAP - preamble.length)`.
+ * Once the tier-0 preamble grew past CAP (35 rows, ~46k chars) the slice end
+ * went negative, and a negative end makes String.slice drop that many chars
+ * from the END: transcripts under ~16k chars became "" and longer ones lost
+ * their most recent turns, while turn_count still reported the real count.
+ * Every extraction since then was empty or tail-truncated.
+ *
+ * The preamble is never allowed to starve the turns. When the conversation
+ * exceeds the cap, the TAIL is kept (the newest turns carry the handoff
+ * state) and a marker records what was dropped.
+ */
+/** Per-entry caps for the ACTIVE RULES preamble handed to the extractor.
+ *  Soul rows are whole soul sections (15 K to 32 K chars each on a mature
+ *  graph); three of them made the preamble about 100 K chars on
+ *  2026-10-07, so the extractor read rules and soul and little else. */
+export const PREAMBLE_RULE_CHARS = 1000;
+export const PREAMBLE_SOUL_CHARS = SOUL_INPUT_TEXT_CAP;
+export function buildDirectivePreamble(tier0) {
+    if (tier0.length === 0)
+        return "";
+    const lines = tier0.map(d => {
+        const cap = d.category === "soul" ? PREAMBLE_SOUL_CHARS : PREAMBLE_RULE_CHARS;
+        const t = String(d.text ?? "");
+        return `[${d.category}] ${t.length > cap ? t.slice(0, cap - 3) + "..." : t}`;
+    });
+    return `ACTIVE RULES (judge compliance against these):\n${lines.join("\n")}\n\n---\n\n`;
+}
+export function composeExtractionTranscript(preamble, transcript, cap = EXTRACTION_TRANSCRIPT_CAP) {
+    const budget = Math.max(0, Math.floor(cap));
+    let body = transcript;
+    if (body.length > budget) {
+        const dropped = body.length - budget;
+        const marker = `[... ${dropped} earlier chars omitted; most recent turns follow ...]\n`;
+        body = marker + body.slice(body.length - budget);
+    }
+    return preamble + body;
+}
 export async function countActionablePendingWork(store) {
     if (!store.isAvailable())
         return 0;
@@ -536,10 +579,8 @@ async function buildWorkPayload(item, state) {
             const instructions = buildCoalescedPrompt(false, false, prior, payload.include_handoff ?? true, payload.include_reflection ?? false);
             // Include Tier 0 directives so the LLM can judge rules compliance
             const tier0 = await store.getAllCoreMemory(0).catch(() => []);
-            const directivePreamble = tier0.length > 0
-                ? `ACTIVE RULES (judge compliance against these):\n${tier0.map(d => `[${d.category}] ${d.text}`).join("\n")}\n\n---\n\n`
-                : "";
-            const fullTranscript = directivePreamble + transcript.slice(0, 30000 - directivePreamble.length);
+            const directivePreamble = buildDirectivePreamble(tier0);
+            const fullTranscript = composeExtractionTranscript(directivePreamble, transcript);
             return {
                 work_id: item.id,
                 work_type: "coalesced_extraction",

@@ -4,6 +4,13 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-10-07
+
+### Fixed
+- **Every extraction since the tier-0 set outgrew 30 K chars was empty or tail-cut (#23).** `transcript.slice(0, 30000 - preamble.length)` went negative once the ACTIVE RULES preamble passed the cap, and a negative end trims from the END, so sessions under about 70 K chars reached the extractor as preamble only while `turn_count` still reported the real number. The branch fix from 2026-09-08 (`composeExtractionTranscript`: the cap applies to the conversation only, newest turns kept, a marker names what was dropped) is merged, and the preamble itself is now bounded by `buildDirectivePreamble`: soul rows are cut to 600 chars and rules to 1,000, so three whole soul sections can no longer make a 100 K preamble. The two items drained empty on 2026-10-07 are re-queued.
+- **Rolling tier-0 delivery never advanced.** `SELECT *` returns `id` as a RecordId object and each query yields new objects, so the delivered set (keyed on the raw id) never matched and the same top batch went out on every prompt. Keyed on `String(id)` now (`entryKey`), with a regression test that feeds RecordId-shaped ids.
+- Soul rows in the full-text batch are delivered as one 800-char rotated window (`windowSoulText`), not a raw 4,000-char slice of a 32 K section.
+
 ## [0.10.1] - 2026-10-07
 
 ### Fixed

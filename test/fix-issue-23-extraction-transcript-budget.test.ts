@@ -6,7 +6,7 @@
  * (27 and 14 real turns) reached the extractor with zero turns.
  */
 import { describe, it, expect } from "vitest";
-import { composeExtractionTranscript, EXTRACTION_TRANSCRIPT_CAP } from "../src/tools/pending-work.js";
+import { composeExtractionTranscript, buildDirectivePreamble, EXTRACTION_TRANSCRIPT_CAP, PREAMBLE_SOUL_CHARS, PREAMBLE_RULE_CHARS } from "../src/tools/pending-work.js";
 
 const preamble46k = "ACTIVE RULES (judge compliance against these):\n" + "[rules] x".repeat(5100) + "\n\n---\n\n";
 const turns = (n: number) => Array.from({ length: n }, (_, i) => `[user] turn ${i}\n[assistant] reply ${i}`).join("\n");
@@ -38,5 +38,22 @@ describe("composeExtractionTranscript (issue #23)", () => {
   it("leaves short conversations untouched with a short preamble", () => {
     const out = composeExtractionTranscript("RULES\n\n---\n\n", "[user] a\n[assistant] b");
     expect(out).toBe("RULES\n\n---\n\n[user] a\n[assistant] b");
+  });
+});
+
+describe("buildDirectivePreamble caps each entry (2026-10-07: three soul rows made a 100 K preamble)", () => {
+  it("caps soul rows hard and rules gently, keeps the header and separator", () => {
+    const out = buildDirectivePreamble([
+      { category: "soul", text: "s".repeat(32_000) },
+      { category: "rules", text: "r".repeat(5_000) },
+      { category: "rules", text: "short rule." },
+    ]);
+    expect(out.startsWith("ACTIVE RULES")).toBe(true);
+    expect(out.endsWith("\n\n---\n\n")).toBe(true);
+    expect(out.length).toBeLessThan(PREAMBLE_SOUL_CHARS + PREAMBLE_RULE_CHARS + 200);
+    expect(out).toContain("[rules] short rule.");
+  });
+  it("returns an empty preamble for no directives", () => {
+    expect(buildDirectivePreamble([])).toBe("");
   });
 });

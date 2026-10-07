@@ -15,6 +15,8 @@ import {
   digestLine,
   planTier0Delivery,
   enforceInlineCeiling,
+  entryKey,
+  TIER0_SOUL_WINDOW_CHARS,
 } from "../src/engine/inline-budget.js";
 import type { CoreMemoryEntry } from "../src/engine/surreal.js";
 
@@ -105,6 +107,24 @@ describe("planTier0Delivery rolls full text across prompts", () => {
     delivered.clear();
     const again = planTier0Delivery(rules, delivered, 1_000_000);
     expect(again.full).toHaveLength(44);
+  });
+  it("advances when ids arrive as RecordId-like objects, not strings (the SELECT * shape)", () => {
+    class RecordId { constructor(public tb: string, public id: string) {} toString() { return `${this.tb}:${this.id}`; } }
+    const mk = (i: number) => ({ ...rule(i, 300), id: new RecordId("core_memory", `r${i}`) as unknown as string });
+    const delivered = new Set<string>();
+    const first = planTier0Delivery([mk(1), mk(2), mk(3)], delivered, 1_000_000);
+    expect(first.full).toHaveLength(3);
+    // A second query yields NEW objects for the same rows.
+    const second = planTier0Delivery([mk(1), mk(2), mk(3)], delivered, 1_000_000);
+    expect(second.full).toHaveLength(0);
+    expect(second.digest).toHaveLength(3);
+    expect(entryKey(mk(1))).toBe("core_memory:r1");
+  });
+  it("delivers a soul section as one bounded window instead of raw text", () => {
+    const soul = { ...entry("core_memory:soul1", 60, "sentence one. ".repeat(2_000)), category: "soul" };
+    const plan = planTier0Delivery([soul], new Set(), 1_000_000);
+    expect(plan.full).toHaveLength(1);
+    expect(plan.full[0].text.length).toBeLessThanOrEqual(TIER0_SOUL_WINDOW_CHARS + 40);
   });
   it("caps a single oversized directive instead of letting it eat the batch", () => {
     const plan = planTier0Delivery([rule(1, 9_000), rule(2, 300)], new Set(), 6_000);
