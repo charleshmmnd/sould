@@ -14,11 +14,25 @@ export declare function createIntrospectToolDef(state: GlobalPluginState, sessio
         record_id: import("@sinclair/typebox").TOptional<import("@sinclair/typebox").TString>;
     }>;
     execute: (_toolCallId: string, params: {
-        action: "status" | "count" | "verify" | "query" | "migrate" | "trends" | "stats";
+        action: "status" | "count" | "verify" | "query" | "migrate" | "trends" | "stats" | "soul";
         table?: string;
         filter?: string;
         record_id?: string;
     }) => Promise<{
+        content: {
+            type: "text";
+            text: string;
+        }[];
+        details: null;
+    } | {
+        content: {
+            type: "text";
+            text: string;
+        }[];
+        details: {
+            revisions: number;
+        };
+    } | {
         content: {
             type: "text";
             text: string;
@@ -34,12 +48,6 @@ export declare function createIntrospectToolDef(state: GlobalPluginState, sessio
                 label: string;
             };
         };
-    } | {
-        content: {
-            type: "text";
-            text: string;
-        }[];
-        details: null;
     } | {
         content: {
             type: "text";

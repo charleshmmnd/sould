@@ -84,7 +84,7 @@ export declare const MCP_TOOLS: readonly [{
         readonly properties: {
             readonly action: {
                 readonly type: "string";
-                readonly enum: readonly ["status", "count", "verify", "query", "migrate", "trends", "stats"];
+                readonly enum: readonly ["status", "count", "verify", "query", "migrate", "trends", "stats", "soul"];
                 readonly description: "Diagnostic action to perform";
             };
             readonly table: {

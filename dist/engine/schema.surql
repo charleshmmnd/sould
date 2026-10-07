@@ -807,6 +807,11 @@ DEFINE FIELD IF NOT EXISTS revisions.*.timestamp ON soul TYPE string;
 DEFINE FIELD IF NOT EXISTS revisions.*.section ON soul TYPE string;
 DEFINE FIELD IF NOT EXISTS revisions.*.change ON soul TYPE string;
 DEFINE FIELD IF NOT EXISTS revisions.*.rationale ON soul TYPE string;
+-- 2026-10-07: what a revision replaced, by entry text, so the ledger keeps the
+-- un-softened version (see diffSoulSection in soul.ts). Optional: rows written
+-- before this have neither.
+DEFINE FIELD IF NOT EXISTS revisions.*.removed ON soul TYPE option<array<string>>;
+DEFINE FIELD IF NOT EXISTS revisions.*.added ON soul TYPE option<array<string>>;
 DEFINE FIELD IF NOT EXISTS created_at ON soul TYPE datetime DEFAULT time::now();
 DEFINE FIELD IF NOT EXISTS updated_at ON soul TYPE datetime DEFAULT time::now();
 

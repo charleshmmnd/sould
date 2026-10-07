@@ -140,6 +140,17 @@ export type SoulSectionName = "working_style" | "emotional_dimensions" | "self_o
  *  on every wakeup synthesis, evolve fetch/commit, and UI soulView. 50 keeps
  *  a generous forensic window while bounding the row. */
 export declare const SOUL_REVISIONS_CAP = 50;
+export { SOUL_ENTRY_SEPARATOR, soulEntryText } from "./soul-text.js";
+export declare const SOUL_DIFF_MAX_ENTRIES = 8;
+export declare const SOUL_DIFF_MAX_CHARS = 600;
+/** What a section revision removed and added, by entry text, so the ledger
+ *  keeps the un-softened version. Before this (2026-10-07) a revision entry
+ *  said only "Updated earned_values": the two values engraved on 2026-08-23
+ *  were replaced by later evolutions and nothing recorded what they had been. */
+export declare function diffSoulSection(before: unknown[] | undefined, after: unknown[]): {
+    removed: string[];
+    added: string[];
+};
 export interface GuardedSoulWrite {
     section: SoulSectionName;
     /** Complete new value for the section — REPLACES it on write. */

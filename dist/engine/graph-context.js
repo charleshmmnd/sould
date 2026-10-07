@@ -4,6 +4,7 @@
  * Core retrieval pipeline: vector search → graph expand → WMR/ACAN scoring
  * → dedup → budget trim → format.
  */
+import { windowSoulText } from "./soul-text.js";
 import { getPendingDirectives, clearPendingDirectives, getSessionContinuity, getSuppressedNodeIds } from "./cognitive-check.js";
 import { queryCausalContext } from "./causal.js";
 import { findRelevantSkills, formatSkillContext } from "./skills.js";
@@ -1022,8 +1023,14 @@ function perItemCapFor(priority) {
  * so the loss has to be observable to somebody.
  */
 export function applyCoreBudgetVerbose(entries, budgetChars) {
-    const render = (text, cap) => text.length > cap ? text.slice(0, cap) + "..." : text;
-    const cost = (text, cap) => render(text, cap).length + 6;
+    // Soul rows hold a whole section each; rotate whole entries through the
+    // cap instead of cutting the row after its first entry (soul-text.ts). The
+    // seed moves every five minutes, so a session sees the section walk by.
+    const soulSeed = Math.floor(Date.now() / 300_000);
+    const render = (e, cap) => e.category === "soul"
+        ? windowSoulText(e.text, cap, soulSeed + e.text.length)
+        : (e.text.length > cap ? e.text.slice(0, cap) + "..." : e.text);
+    const cost = (e, cap) => render(e, cap).length + 6;
     // ── Pass 1: admission at the BASE cap ──────────────────────────────────
     // Every entry is first measured at MAX_CORE_MEMORY_CHARS, never at its
     // priority-scaled cap. Charging the scaled cap up front makes the generous
@@ -1038,7 +1045,7 @@ export function applyCoreBudgetVerbose(entries, budgetChars) {
     const slots = [];
     const dropped = [];
     for (const e of entries) {
-        const c = cost(e.text, MAX_CORE_MEMORY_CHARS);
+        const c = cost(e, MAX_CORE_MEMORY_CHARS);
         if (used + c > budgetChars) {
             dropped.push({ id: e.id, priority: e.priority ?? 50, chars: e.text.length });
             continue;
@@ -1055,8 +1062,8 @@ export function applyCoreBudgetVerbose(entries, budgetChars) {
         const target = perItemCapFor(s.e.priority);
         if (target <= s.cap || s.e.text.length <= s.cap)
             continue;
-        const before = cost(s.e.text, s.cap);
-        const full = cost(s.e.text, target);
+        const before = cost(s.e, s.cap);
+        const full = cost(s.e, target);
         if (used - before + full <= budgetChars) {
             used += full - before;
             s.cap = target;
@@ -1066,14 +1073,14 @@ export function applyCoreBudgetVerbose(entries, budgetChars) {
         // whatever slack is left and stop there.
         const partial = Math.min(target, s.cap + (budgetChars - used));
         if (partial > s.cap) {
-            used += cost(s.e.text, partial) - before;
+            used += cost(s.e, partial) - before;
             s.cap = partial;
         }
     }
     const kept = [];
     const truncated = [];
     for (const { e, cap } of slots) {
-        const text = render(e.text, cap);
+        const text = render(e, cap);
         if (text !== e.text) {
             truncated.push({ id: e.id, priority: e.priority ?? 50, from: e.text.length, to: cap });
         }
