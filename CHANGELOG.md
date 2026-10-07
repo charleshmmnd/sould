@@ -4,6 +4,19 @@ All notable changes to LaqrumCode are documented here. The 0.7.x series introduc
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-10-07
+
+### Fixed
+- **Injected context was too large to be read.** Claude Code persists any hook `additionalContext` above an inline threshold to a file and shows the model a 2 KB preview. On a mature graph (44 tier-0 directives, about 20 K chars) every UserPromptSubmit payload came in at 29 to 34 KB and was persisted, so the model saw neither the directives nor the recalled memory on any prompt. The directives were re-sent in full on every prompt, which is what pushed the payload over the line. Observed live on 2026-10-07, the first session after the rename.
+
+### Changed
+- **Rolling tier-0 delivery** (`src/engine/inline-budget.ts`). Directives are delivered in full once per session, highest priority first, in batches bounded by `SOULD_HOOK_MAX_CHARS * 0.6`. Directives delivered on an earlier prompt are re-sent as one-line digests (first sentence), so each prompt still carries a reminder of every rule while the full text stays in the conversation where it was injected. `PostCompact` clears the delivered set so the cycle restarts after the model loses its window. Session state gains `tier0Delivered`.
+- **Hard inline ceiling.** `handleUserPromptSubmit` trims the retrieval tail at a line boundary when the wrapped payload exceeds `SOULD_HOOK_MAX_CHARS` (default 20000), closes any section tag the cut left open, and appends a marker naming how much was dropped. Loss is visible instead of silent.
+- `buildSystemPromptSection` accepts an optional delivery plan; without one it renders the whole set as before.
+
+### Tests
+- `test/inline-budget.test.ts` (14): rolling delivery covers every directive exactly once across prompts and digests all of them afterwards; priority order; tiny-budget floor; post-compaction restart; oversized-entry cap; ceiling trims at a line boundary, closes open tags, never double-closes.
+
 ## [0.10.0] - 2026-10-07
 
 ### Changed

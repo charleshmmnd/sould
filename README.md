@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/github/license/charleshmmnd/sould?style=for-the-badge&logo=opensourceinitiative&color=blue)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![SurrealDB](https://img.shields.io/badge/SurrealDB-3.1-ff00a0?style=for-the-badge&logo=surrealdb&logoColor=white)](https://surrealdb.com)
-[![Tests](https://img.shields.io/badge/Tests-1740_passing-brightgreen?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev)
+[![Tests](https://img.shields.io/badge/Tests-1864_passing-brightgreen?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev)
 
 **Graph-backed permanent memory for [Claude Code](https://claude.ai/claude-code).**
 
@@ -308,6 +308,7 @@ All env vars are optional with sensible defaults.
 |----------|---------|-------------|
 | `SOULD_SKIP_BOOTSTRAP` | `0` | Set `1` to skip first-run provisioning entirely |
 | `SOULD_DAEMON_IDLE_TIMEOUT_MS` | `6000` | Daemon exits after last client disconnects. Set `0` to disable. |
+| `SOULD_HOOK_MAX_CHARS` | `20000` | Ceiling for one prompt's injected context. Claude Code persists larger hook output to a file with a 2 KB preview, so anything above the ceiling never reaches the model. Tier-0 directives are delivered in full once per session in batches under this ceiling, then as one-line digests. |
 | `SOULD_DAEMON_TRANSPORT` | `unix` | Set `tcp` for loopback TCP (Windows) |
 | `SOULD_NODE_LLAMA_CPP_PATH` | (auto) | Override path to node-llama-cpp install |
 | `SOULD_LEGACY_MONOLITH` | `0` | Set `1` for pre-0.7.0 single-process mode (emergency rollback) |

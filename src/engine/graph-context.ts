@@ -11,6 +11,7 @@ import type {
 } from "./types.js";
 import type { SurrealStore, VectorSearchResult, CoreMemoryEntry } from "./surreal.js";
 import { windowSoulText } from "./soul-text.js";
+import { planTier0Delivery, digestLine, tier0FullBudgetChars, resolveHookInlineMaxChars, type Tier0Plan } from "./inline-budget.js";
 import type { EmbeddingService } from "./embeddings.js";
 import type { SessionState } from "./state.js";
 import { getPendingDirectives, clearPendingDirectives, getSessionContinuity, getSuppressedNodeIds } from "./cognitive-check.js";
@@ -1275,7 +1276,7 @@ function formatTierSection(entries: CoreMemoryEntry[], label: string): string {
  * cache-read rates (10% cost) on subsequent API calls in the agentic loop.
  * (claw-code pattern: __SYSTEM_PROMPT_DYNAMIC_BOUNDARY__ — prompt.rs:37-140)
  */
-function buildSystemPromptSection(session: SessionState, tier0Entries: CoreMemoryEntry[]): string | undefined {
+function buildSystemPromptSection(session: SessionState, tier0Entries: CoreMemoryEntry[], plan?: Tier0Plan): string | undefined {
   const parts: string[] = [];
 
   // Graph pillar IDs (compact — the model doesn't need architecture descriptions)
@@ -1289,10 +1290,27 @@ function buildSystemPromptSection(session: SessionState, tier0Entries: CoreMemor
 
   // Token-density rules are in buildRulesSuffix (injected per-turn) — no duplication here
 
-  // Tier 0 core directives (semi-static, changes rarely)
-  const t0Section = formatTierSection(tier0Entries, "CORE DIRECTIVES (always loaded, never evicted)");
+  // Tier 0 core directives (semi-static, changes rarely).
+  // 0.10.1: rolling delivery. Without a plan (legacy callers) the whole set
+  // renders in full as before. With one, only this prompt's batch is full
+  // text; directives delivered on an earlier prompt get a one-line digest
+  // so the payload stays under the harness inline limit. See
+  // engine/inline-budget.ts for why.
+  if (!plan) {
+    const t0Section = formatTierSection(tier0Entries, "CORE DIRECTIVES (always loaded, never evicted)");
+    if (t0Section) parts.push(t0Section);
+    return parts.length > 0 ? parts.join("\n\n") : undefined;
+  }
+  const t0Section = formatTierSection(plan.full, "CORE DIRECTIVES (always loaded, never evicted)");
   if (t0Section) parts.push(t0Section);
-
+  const reminders = [...plan.digest, ...plan.deferred];
+  if (reminders.length > 0) {
+    const lines = reminders.map(e => `  - ${stripStructuralTags(digestLine(e.text))}`);
+    const head = plan.digest.length > 0 && plan.deferred.length === 0
+      ? `CORE DIRECTIVES DELIVERED IN FULL EARLIER THIS SESSION (${plan.digest.length}; the full text is already in your context, one-line reminders follow)`
+      : `CORE DIRECTIVES IN BRIEF (${reminders.length}; ${plan.digest.length} were delivered in full earlier this session, ${plan.deferred.length} arrive in full on the next prompt)`;
+    parts.push(`${head}:\n${lines.join("\n")}`);
+  }
   return parts.length > 0 ? parts.join("\n\n") : undefined;
 }
 
@@ -1907,10 +1925,18 @@ export async function graphTransformContext(
   let systemPromptSection: string | undefined;
   let tier0ForSys: CoreMemoryEntry[] = [];
   try {
-    tier0ForSys = store.isAvailable()
-      ? applyCoreBudget(await store.getAllCoreMemory(0), getTier0BudgetChars(budgets))
-      : [];
-    systemPromptSection = buildSystemPromptSection(session, tier0ForSys);
+    // 0.10.1: the full-text batch is bounded by the harness inline ceiling,
+    // not only by the model-context budget; the latter (~22 K chars on a
+    // 200 K window) is what let 44 directives ride on every prompt and push
+    // the whole hook payload into a persisted file the model never read.
+    const allTier0 = store.isAvailable() ? await store.getAllCoreMemory(0) : [];
+    const fullBudget = Math.min(getTier0BudgetChars(budgets), tier0FullBudgetChars(resolveHookInlineMaxChars()));
+    const plan = planTier0Delivery(allTier0, session.tier0Delivered, fullBudget);
+    if (plan.full.length > 0) {
+      log.info(`[tier0-delivery] ${plan.full.length} directives in full (${plan.usedChars}/${plan.budgetChars} chars), ${plan.digest.length} digested, ${plan.deferred.length} deferred`);
+    }
+    tier0ForSys = [...plan.full, ...plan.digest, ...plan.deferred];
+    systemPromptSection = buildSystemPromptSection(session, tier0ForSys, plan);
     // Mark sections as injected so formatContextMessage() skips them (prevents duplication)
     if (systemPromptSection) {
       if (systemPromptSection.includes("GRAPH PILLARS")) session.injectedSections.add("ilaqrum");

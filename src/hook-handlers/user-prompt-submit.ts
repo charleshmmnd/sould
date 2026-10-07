@@ -17,6 +17,7 @@ import { stripReminderWrapper } from "../engine/sanitize.js";
 import { log } from "../engine/log.js";
 import { detectAnomalies, formatAnomalyBlock } from "../engine/observability.js";
 import { countActionablePendingWork } from "../tools/pending-work.js";
+import { enforceInlineCeiling, resolveHookInlineMaxChars } from "../engine/inline-budget.js";
 
 
 /** Wrap raw sould context in a system-reminder block. Claude Code's harness
@@ -185,9 +186,23 @@ This runs silently in the background. Respond to the user normally.
     log.info(`[pending_work] ${pendingCount} items queued for subagent processing`);
   }
 
-  const additionalContext = [anomalyBlock, contextString, pendingWorkMessage].filter(Boolean).join("") || undefined;
+  const assemble = (ctx: string | undefined) =>
+    wrapMemoryContext([anomalyBlock, ctx, pendingWorkMessage].filter(Boolean).join("") || undefined);
 
-  log.debug(`UserPromptSubmit: session=${sessionId}, context=${contextString ? "injected" : "none"}, pending=${pendingWorkMessage ? "yes" : "no"}`);
+  // 0.10.1: hard ceiling. Anything above the harness inline limit is written
+  // to a file with a 2 KB preview and never reaches the model, so a payload
+  // that is too large is strictly worse than a shorter one. Trim the
+  // retrieval tail (directives sit at the head) and say so in the block.
+  const ceiling = resolveHookInlineMaxChars();
+  let wrapped = assemble(contextString);
+  if (wrapped.length > ceiling && contextString) {
+    const over = wrapped.length - ceiling;
+    const fitted = enforceInlineCeiling(contextString, contextString.length - over);
+    log.warn(`[inline-ceiling] hook payload ${wrapped.length} chars > ${ceiling}; trimmed ${fitted.trimmed} chars from the retrieval tail`);
+    wrapped = assemble(fitted.text);
+  }
 
-  return makeHookOutput("UserPromptSubmit", wrapMemoryContext(additionalContext));
+  log.debug(`UserPromptSubmit: session=${sessionId}, context=${contextString ? "injected" : "none"}, pending=${pendingWorkMessage ? "yes" : "no"}, chars=${wrapped.length}`);
+
+  return makeHookOutput("UserPromptSubmit", wrapped);
 }

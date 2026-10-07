@@ -121,6 +121,10 @@ export class SessionState {
   /** Tracks which static context sections the model has already seen in the conversation window.
    *  Persists across turns (NOT cleared in resetTurn) — cleared only when messages drop from window. */
   readonly injectedSections = new Set<string>();
+  /** 0.10.1: tier-0 directive ids already delivered in FULL this session
+   *  (rolling delivery, see engine/inline-budget.ts). Persists across turns;
+   *  cleared with injectedSections after compaction so the cycle restarts. */
+  readonly tier0Delivered = new Set<string>();
 
   // 5-pillar IDs (populated at bootstrap)
   agentId = "";

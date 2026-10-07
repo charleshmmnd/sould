@@ -25,6 +25,7 @@ export async function handlePostCompact(
   // Clear injected sections — the model lost them in compaction,
   // so everything needs to be re-injected
   session.injectedSections.clear();
+  session.tier0Delivered.clear();
 
   // Re-retrieve context from the graph using the last user query
   // This rebuilds what the model lost during compaction
