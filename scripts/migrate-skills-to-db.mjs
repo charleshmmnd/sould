@@ -16,7 +16,7 @@
  *   SURREAL_URL   — default ws://127.0.0.1:8000/rpc
  *   SURREAL_USER  — default root
  *   SURREAL_PASS  — default root
- *   SURREAL_NS    — default sould
+ *   SURREAL_NS    (default sould)
  *   SURREAL_DB    — default memory
  *   SOULD_SKILLS_DIR — default /home/zero/voidorigin/sould/skills
  */
