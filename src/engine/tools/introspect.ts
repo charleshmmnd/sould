@@ -9,7 +9,7 @@ import { Type } from "@sinclair/typebox";
 import type { GlobalPluginState, SessionState } from "../state.js";
 import { assertRecordId } from "../surreal.js";
 import { migrateWorkspace } from "../workspace-migrate.js";
-import { checkGraduation, formatGraduationReport, hasSoul } from "../soul.js";
+import { checkGraduation, formatGraduationReport, hasSoul, getSoul, soulEntryText } from "../soul.js";
 import { computeTrends } from "../observability.js";
 import { recoverProjectIdRows, recoverDaemonOrphans } from "../recovery.js";
 import { SECRET_PATTERNS } from "../redact.js";
@@ -136,7 +136,7 @@ export function createIntrospectToolDef(state: GlobalPluginState, session: Sessi
     description: "Inspect your memory database. Use for ALL database queries — NEVER use curl or bash to access SurrealDB directly. Actions: status (health + table counts), count (filtered row counts), verify (confirm record exists), query (predefined reports).",
     parameters: introspectSchema,
     execute: async (_toolCallId: string, params: {
-      action: "status" | "count" | "verify" | "query" | "migrate" | "trends" | "stats";
+      action: "status" | "count" | "verify" | "query" | "migrate" | "trends" | "stats" | "soul";
       table?: string; filter?: string; record_id?: string;
     }) => {
       const { store } = state;
@@ -153,6 +153,7 @@ export function createIntrospectToolDef(state: GlobalPluginState, session: Sessi
           case "migrate": return await migrateAction(state, params.filter);
           case "trends": return await trendsAction(state);
           case "stats": return await statsAction(state);
+          case "soul": return await soulAction(store);
         }
       } catch (err) {
         return { content: [{ type: "text" as const, text: `Introspect failed: ${err}` }], details: null };
@@ -162,6 +163,53 @@ export function createIntrospectToolDef(state: GlobalPluginState, session: Sessi
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────
+
+/** The whole soul document, untruncated (secrets masked), with the revision
+ *  ledger including what each revision removed and added. verifyAction cuts
+ *  every string at 300 characters, which hid the body of every entry; this is
+ *  the one view that returns the text the agent actually wrote (2026-10-07). */
+async function soulAction(store: any) {
+  const soul = await getSoul(store);
+  if (!soul) {
+    return { content: [{ type: "text" as const, text: "No soul document yet (soul:laqrumbrain is absent)." }], details: null };
+  }
+  const mask = (v: unknown) => {
+    let t = typeof v === "string" ? v : (v === undefined || v === null ? "" : JSON.stringify(v));
+    for (const pat of SECRET_PATTERNS) t = t.replace(pat, "[redacted-secret-pattern]");
+    return t;
+  };
+  const lines: string[] = [];
+  lines.push("SOUL DOCUMENT (soul:laqrumbrain)");
+  lines.push("═══════════════════════════════════");
+  lines.push(`created ${mask(soul.created_at)} | updated ${mask(soul.updated_at)} | revisions ${(soul.revisions ?? []).length}`);
+  const section = (title: string, entries: unknown[]) => {
+    lines.push(""); lines.push(`${title} (${entries.length})`);
+    entries.forEach((e, i) => {
+      if (e && typeof e === "object" && typeof (e as any).grounded_in === "string" && (e as any).grounded_in) {
+        lines.push(`  ${i + 1}. ${mask((e as any).value)}`);
+        lines.push(`     learned from: ${mask((e as any).grounded_in)}`);
+      } else if (e && typeof e === "object" && typeof (e as any).dimension === "string") {
+        lines.push(`  ${i + 1}. ${mask((e as any).dimension)}${(e as any).adopted_at ? ` (adopted ${mask((e as any).adopted_at)})` : ""}`);
+        if ((e as any).description) lines.push(`     ${mask((e as any).description)}`);
+      } else {
+        lines.push(`  ${i + 1}. ${mask(soulEntryText(e))}`);
+      }
+    });
+  };
+  section("WORKING STYLE", soul.working_style ?? []);
+  section("EARNED VALUES", soul.earned_values ?? []);
+  section("SELF-OBSERVATIONS", soul.self_observations ?? []);
+  section("EMOTIONAL DIMENSIONS", soul.emotional_dimensions ?? []);
+  const revs = [...(soul.revisions ?? [])].slice(-20);
+  lines.push(""); lines.push(`REVISIONS (last ${revs.length} of ${(soul.revisions ?? []).length})`);
+  for (const r of revs) {
+    const rr = r as any;
+    lines.push(`  ${mask(rr.timestamp).slice(0, 19)} ${mask(rr.section)}: ${mask(rr.change)}`);
+    for (const t of rr.removed ?? []) lines.push(`     - ${mask(t)}`);
+    for (const t of rr.added ?? []) lines.push(`     + ${mask(t)}`);
+  }
+  return { content: [{ type: "text" as const, text: lines.join("\n") }], details: { revisions: (soul.revisions ?? []).length } };
+}
 
 async function statusAction(store: any, sessionId: string, embeddings: any) {
   const info = store.getInfo();

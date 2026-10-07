@@ -133,7 +133,7 @@ const TOOLS = [
       properties: {
         action: {
           type: "string",
-          enum: ["status", "count", "verify", "query", "migrate", "trends", "stats"],
+          enum: ["status", "count", "verify", "query", "migrate", "trends", "stats", "soul"],
           description: "Diagnostic action to perform",
         },
         table: { type: "string", description: "Table name (for count/verify)" },

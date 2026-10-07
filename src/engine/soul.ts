@@ -571,6 +571,28 @@ const ALLOWED_SECTIONS = new Set<string>(["working_style", "emotional_dimensions
  *  a generous forensic window while bounding the row. */
 export const SOUL_REVISIONS_CAP = 50;
 
+// Separator and entry-text helpers live in soul-text.ts (shared with the
+// injector, which must not import this module). Re-exported for callers.
+export { SOUL_ENTRY_SEPARATOR, soulEntryText } from "./soul-text.js";
+import { SOUL_ENTRY_SEPARATOR, soulEntryText } from "./soul-text.js";
+
+export const SOUL_DIFF_MAX_ENTRIES = 8;
+export const SOUL_DIFF_MAX_CHARS = 600;
+
+/** What a section revision removed and added, by entry text, so the ledger
+ *  keeps the un-softened version. Before this (2026-10-07) a revision entry
+ *  said only "Updated earned_values": the two values engraved on 2026-08-23
+ *  were replaced by later evolutions and nothing recorded what they had been. */
+export function diffSoulSection(before: unknown[] | undefined, after: unknown[]): { removed: string[]; added: string[] } {
+  const cut = (t: string) => (t.length > SOUL_DIFF_MAX_CHARS ? t.slice(0, SOUL_DIFF_MAX_CHARS - 3) + "..." : t);
+  const b = (Array.isArray(before) ? before : []).map(soulEntryText);
+  const a = after.map(soulEntryText);
+  const bset = new Set(b), aset = new Set(a);
+  const removed = b.filter(t => !aset.has(t)).slice(0, SOUL_DIFF_MAX_ENTRIES).map(cut);
+  const added = a.filter(t => !bset.has(t)).slice(0, SOUL_DIFF_MAX_ENTRIES).map(cut);
+  return { removed, added };
+}
+
 export interface GuardedSoulWrite {
   section: SoulSectionName;
   /** Complete new value for the section — REPLACES it on write. */
@@ -636,12 +658,13 @@ export async function reviseSoulGuarded(
       bindings[`g${i}`] = w.snapshot;
     }
   });
-  const revs = clean.map(w => ({
-    timestamp: now,
-    section: w.section,
-    change: `Updated ${w.section}`,
-    rationale,
-  }));
+  const revs = clean.map(w => {
+    const d = diffSoulSection(w.snapshot, w.value);
+    const change = Array.isArray(w.snapshot)
+      ? `Updated ${w.section}: ${d.removed.length} removed, ${d.added.length} added`
+      : `Updated ${w.section}`;
+    return { timestamp: now, section: w.section, change, rationale, removed: d.removed, added: d.added };
+  });
   bindings.revs = revs;
   const where = guards.length > 0 ? ` WHERE ${guards.join(" AND ")}` : "";
   try {
@@ -788,17 +811,17 @@ export async function seedSoulAsCoreMemory(
   // just at graduation), so the window is exercised far more often.
   const sections: Array<{ prefix: string; text: string; priority: number } | null> = [
     soul.working_style.length > 0
-      ? { prefix: "Working style: ", text: "Working style: " + soul.working_style.join("; "), priority: 90 }
+      ? { prefix: "Working style: ", text: "Working style: " + soul.working_style.join(SOUL_ENTRY_SEPARATOR), priority: 90 }
       : null,
     soul.self_observations.length > 0
-      ? { prefix: "Self-observations: ", text: "Self-observations: " + soul.self_observations.join("; "), priority: 85 }
+      ? { prefix: "Self-observations: ", text: "Self-observations: " + soul.self_observations.join(SOUL_ENTRY_SEPARATOR), priority: 85 }
       : null,
     // grounded_in may be empty (PR #22 accepts bare-string earned values) —
     // don't render a dangling "(learned from: )".
     soul.earned_values.length > 0
       ? {
           prefix: "Earned values: ",
-          text: "Earned values: " + soul.earned_values.map(v => v.grounded_in ? `${v.value} (learned from: ${v.grounded_in})` : v.value).join("; "),
+          text: "Earned values: " + soul.earned_values.map(v => v.grounded_in ? `${v.value} (learned from: ${v.grounded_in})` : v.value).join(SOUL_ENTRY_SEPARATOR),
           priority: 88,
         }
       : null,

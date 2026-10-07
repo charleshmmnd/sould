@@ -4,6 +4,12 @@ All notable changes to LaqrumCode are documented here. The 0.7.x series introduc
 
 ## [Unreleased]
 
+### Fixed
+- **The soul reached the model one entry per section.** Seeded Tier-0 soul rows were joined with "; ", which entries also contain, and the injector cut each row at its per-item cap, so with 20 entries in a section only the first one was ever loaded (observed 2026-10-07: every turn for months showed the same three sentences). Rows are now joined on a separator that cannot occur inside an entry (`SOUL_ENTRY_SEPARATOR`, soul-text.ts) and `applyCoreBudgetVerbose` renders soul rows with `windowSoulText`, which shows whole entries with `(k/n)` markers and rotates the starting entry every five minutes, so a session walks the whole section. Rows seeded before this are split by a capital-letter heuristic until the next evolution re-seeds them; `scripts/reseed-soul-core-memory.mjs` re-seeds on demand.
+- **Soul revisions recorded nothing but "Updated <section>".** A revision now carries `removed` and `added` (entry text, up to 8 each, 600 chars) from `diffSoulSection`, and its `change` line counts them, so what an evolution replaced is never lost again. The values engraved on 2026-08-23 had been replaced by later evolutions with no record of what they said. Schema: `revisions.*.removed` / `revisions.*.added` (optional).
+- **No way to read the whole soul.** `introspect` gains `action: "soul"`: every section in full (secrets masked, no 300-char cut) plus the last 20 revisions with their removed/added lines. `verify` on `soul:laqrumbrain` still truncates each string at 300 characters.
+
+
 ## [0.9.0] - 2026-08-16
 
 Security-hardening release: a full-repo security & privacy audit (9 findings, all remediated — report with locked hypotheses and appended outcomes archived on the operator share), the retirement of the legacy `root:root` database credential, and the completion of PR #22's soul-pipeline rescue.

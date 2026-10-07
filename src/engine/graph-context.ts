@@ -10,6 +10,7 @@ import type {
   TextContent, ThinkingContent, ToolCall, ImageContent,
 } from "./types.js";
 import type { SurrealStore, VectorSearchResult, CoreMemoryEntry } from "./surreal.js";
+import { windowSoulText } from "./soul-text.js";
 import type { EmbeddingService } from "./embeddings.js";
 import type { SessionState } from "./state.js";
 import { getPendingDirectives, clearPendingDirectives, getSessionContinuity, getSuppressedNodeIds } from "./cognitive-check.js";
@@ -1158,9 +1159,15 @@ export function applyCoreBudgetVerbose(
   entries: CoreMemoryEntry[],
   budgetChars: number,
 ): CoreBudgetResult {
-  const render = (text: string, cap: number) =>
-    text.length > cap ? text.slice(0, cap) + "..." : text;
-  const cost = (text: string, cap: number) => render(text, cap).length + 6;
+  // Soul rows hold a whole section each; rotate whole entries through the
+  // cap instead of cutting the row after its first entry (soul-text.ts). The
+  // seed moves every five minutes, so a session sees the section walk by.
+  const soulSeed = Math.floor(Date.now() / 300_000);
+  const render = (e: CoreMemoryEntry, cap: number) =>
+    e.category === "soul"
+      ? windowSoulText(e.text, cap, soulSeed + e.text.length)
+      : (e.text.length > cap ? e.text.slice(0, cap) + "..." : e.text);
+  const cost = (e: CoreMemoryEntry, cap: number) => render(e, cap).length + 6;
 
   // ── Pass 1: admission at the BASE cap ──────────────────────────────────
   // Every entry is first measured at MAX_CORE_MEMORY_CHARS, never at its
@@ -1176,7 +1183,7 @@ export function applyCoreBudgetVerbose(
   const slots: { e: CoreMemoryEntry; cap: number }[] = [];
   const dropped: CoreBudgetResult["dropped"] = [];
   for (const e of entries) {
-    const c = cost(e.text, MAX_CORE_MEMORY_CHARS);
+    const c = cost(e, MAX_CORE_MEMORY_CHARS);
     if (used + c > budgetChars) {
       dropped.push({ id: e.id, priority: e.priority ?? 50, chars: e.text.length });
       continue;
@@ -1193,8 +1200,8 @@ export function applyCoreBudgetVerbose(
   for (const s of slots) {
     const target = perItemCapFor(s.e.priority);
     if (target <= s.cap || s.e.text.length <= s.cap) continue;
-    const before = cost(s.e.text, s.cap);
-    const full = cost(s.e.text, target);
+    const before = cost(s.e, s.cap);
+    const full = cost(s.e, target);
     if (used - before + full <= budgetChars) {
       used += full - before;
       s.cap = target;
@@ -1204,7 +1211,7 @@ export function applyCoreBudgetVerbose(
     // whatever slack is left and stop there.
     const partial = Math.min(target, s.cap + (budgetChars - used));
     if (partial > s.cap) {
-      used += cost(s.e.text, partial) - before;
+      used += cost(s.e, partial) - before;
       s.cap = partial;
     }
   }
@@ -1212,7 +1219,7 @@ export function applyCoreBudgetVerbose(
   const kept: CoreMemoryEntry[] = [];
   const truncated: CoreBudgetResult["truncated"] = [];
   for (const { e, cap } of slots) {
-    const text = render(e.text, cap);
+    const text = render(e, cap);
     if (text !== e.text) {
       truncated.push({ id: e.id, priority: e.priority ?? 50, from: e.text.length, to: cap });
     }
