@@ -1,12 +1,12 @@
 /**
  * Phase 2 (multi-user auth, after GH #13) — per-user credentials for the
- * MANAGED (laqrumcode-auto-spawned) SurrealDB.
+ * MANAGED (sould-auto-spawned) SurrealDB.
  *
  * Two units under test, both in src/engine/bootstrap.ts:
  *
  *   1. getOrCreateManagedCred(cacheDir) — read-or-create the persisted
- *      managed credential at <laqrumcode-home>/surreal-cred.json (sibling of
- *      cacheDir). Asserts: shape (laqrum_<uid> user + base64url pass), 0600
+ *      managed credential at <sould-home>/surreal-cred.json (sibling of
+ *      cacheDir). Asserts: shape (sould_<uid> user + base64url pass), 0600
  *      perms best-effort, IDEMPOTENCY (second call returns byte-identical
  *      cred, so a reused detached child and the connecting daemon agree), and
  *      regeneration on a corrupt/legacy file.
@@ -20,7 +20,7 @@
  *      root:root managed child is gracefully kept on root:root.
  *
  * Isolation: every test uses a throwaway temp dir as cacheDir, so the real
- * ~/.laqrumcode/surreal-cred.json is never touched.
+ * ~/.sould/surreal-cred.json is never touched.
  */
 
 import { describe, it, expect, afterEach } from "vitest";
@@ -33,7 +33,7 @@ import {
   type ManagedSurrealCred,
 } from "../src/engine/bootstrap.js";
 
-// cacheDir mirrors production's ~/.laqrumcode/cache: the cred file is written to
+// cacheDir mirrors production's ~/.sould/cache: the cred file is written to
 // its PARENT (<root>/surreal-cred.json). So make a <root>/cache temp dir and
 // hand `<root>/cache` to the helper; the cred lands at `<root>/surreal-cred.json`.
 const tmpRoots: string[] = [];
@@ -64,13 +64,13 @@ describe("getOrCreateManagedCred — generation + shape", () => {
     expect(cred.user).not.toBe("root");
     expect(cred.pass).not.toBe("root");
 
-    // user is `laqrum` (no getuid) or `laqrum_<uid>` (POSIX). On the CI POSIX box
+    // user is `sould` (no getuid) or `sould_<uid>` (POSIX). On the CI POSIX box
     // process.getuid exists, so assert the uid-suffixed form there; accept the
     // bare form on a hypothetical non-POSIX runner.
     if (typeof process.getuid === "function") {
-      expect(cred.user).toBe(`laqrum_${process.getuid()}`);
+      expect(cred.user).toBe(`sould_${process.getuid()}`);
     } else {
-      expect(cred.user).toBe("laqrum");
+      expect(cred.user).toBe("sould");
     }
 
     // pass = randomBytes(24).toString("base64url"): 24 bytes → 32 chars,
@@ -79,7 +79,7 @@ describe("getOrCreateManagedCred — generation + shape", () => {
     expect(cred.pass.length).toBeGreaterThanOrEqual(30);
   });
 
-  it("writes the cred file to <laqrumcode-home>/surreal-cred.json (sibling of cacheDir)", () => {
+  it("writes the cred file to <sould-home>/surreal-cred.json (sibling of cacheDir)", () => {
     const cacheDir = mkCacheDir("path");
     getOrCreateManagedCred(cacheDir);
     const p = credPathFor(cacheDir);
@@ -150,7 +150,7 @@ describe("resolveReusedTargetCred — per-target credential decision", () => {
   const generated: ManagedSurrealCred = { user: "laqrum_4321", pass: "GENERATED-secret" };
 
   // ── SAFETY PROPERTY: the dev's :8000 external Docker container. ──────────
-  // findExistingLaqrumcodeSurreal returns pid === null for an external port, so
+  // findExistingSouldSurreal returns pid === null for an external port, so
   // the daemon MUST connect with exactly the CONFIGURED creds (root:root by
   // default, or SURREAL_USER/SURREAL_PASS). Byte-identical to pre-Phase-2.
   it("EXTERNAL discovered DB (pid===null) → CONFIGURED creds (UNCHANGED auth)", () => {

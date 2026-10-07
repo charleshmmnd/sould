@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * LaqrumCode Semantic Knowledge Core backup — exports only the knowledge
+ * Sould Semantic Knowledge Core backup — exports only the knowledge
  * tables and knowledge edges, dropping transcripts (turns, sessions),
  * retrieval telemetry, orchestrator metrics, and ephemeral runtime caches.
  *
  * Use this when transferring knowledge to another agent or system without
  * the conversation volume. For full snapshot use backup-jsonl.mjs or
- * `surreal export`. See skills/laqrumcode-backup-semantic/SKILL.md.
+ * `surreal export`. See skills/sould-backup-semantic/SKILL.md.
  *
  * Env-var overrides (all optional):
  *   SURREAL_URL   — default ws://127.0.0.1:8000/rpc
@@ -14,10 +14,10 @@
  *   SURREAL_PASS  — default root
  *   SURREAL_NS    — default laqrum
  *   SURREAL_DB    — default memory
- *   LAQRUMCODE_BACKUP_DIR — default ./laqrumcode-semantic-YYYYMMDD-HHMM/
+ *   SOULD_BACKUP_DIR — default ./sould-semantic-YYYYMMDD-HHMM/
  */
 
-import { Surreal } from "/home/zero/voidorigin/laqrumcode/node_modules/surrealdb/dist/surrealdb.mjs";
+import { Surreal } from "/home/zero/voidorigin/sould/node_modules/surrealdb/dist/surrealdb.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
@@ -28,7 +28,7 @@ const NS = process.env.SURREAL_NS || "laqrum";
 const DB = process.env.SURREAL_DB || "memory";
 
 const STAMP = new Date().toISOString().replace(/[:.]/g, "-").replace(/T/, "_").slice(0, 17);
-const OUTDIR = resolve(process.env.LAQRUMCODE_BACKUP_DIR || `./laqrumcode-semantic-${STAMP}`);
+const OUTDIR = resolve(process.env.SOULD_BACKUP_DIR || `./sould-semantic-${STAMP}`);
 
 /** Knowledge node tables: the 9 that carry retrieval-grounded value. */
 const KNOWLEDGE_NODE_TABLES = [
@@ -105,9 +105,9 @@ async function collectProjectRefs(db) {
   } catch { return []; }
 }
 
-const IMPORT_DOC = `# LaqrumCode Semantic Knowledge Core — Import Guide
+const IMPORT_DOC = `# Sould Semantic Knowledge Core — Import Guide
 
-This directory contains a portable export of a laqrumcode knowledge graph.
+This directory contains a portable export of a sould knowledge graph.
 Conversation transcripts, retrieval telemetry, and ephemeral runtime
 caches were intentionally excluded.
 
@@ -151,7 +151,7 @@ Embeddings are BGE-M3 1024-dimensional. If the target uses a different model:
 `;
 
 async function main() {
-  console.log(`LaqrumCode Semantic Knowledge Core backup`);
+  console.log(`Sould Semantic Knowledge Core backup`);
   console.log(`  Source:  ${URL} ns=${NS} db=${DB}`);
   console.log(`  Output:  ${OUTDIR}`);
 
@@ -181,7 +181,7 @@ async function main() {
   const metadata = {
     source: { endpoint: URL, namespace: NS, database: DB },
     exported_at: new Date().toISOString(),
-    laqrumcode_export_format: "semantic-v1",
+    sould_export_format: "semantic-v1",
     embedding_model: "BGE-M3",
     embedding_dimension: 1024,
     included: { nodes: KNOWLEDGE_NODE_TABLES, edges: KNOWLEDGE_EDGE_TABLES },

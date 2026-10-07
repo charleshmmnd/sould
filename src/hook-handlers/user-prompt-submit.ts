@@ -19,7 +19,7 @@ import { detectAnomalies, formatAnomalyBlock } from "../engine/observability.js"
 import { countActionablePendingWork } from "../tools/pending-work.js";
 
 
-/** Wrap raw laqrumcode context in a system-reminder block. Claude Code's harness
+/** Wrap raw sould context in a system-reminder block. Claude Code's harness
  * gives system-reminder blocks higher attention weight than plain injected
  * text — empirically the plain-text injection was hitting ~10% retrieval
  * utilization because the model read it as ambient noise.
@@ -40,12 +40,12 @@ import { countActionablePendingWork } from "../tools/pending-work.js";
 export function wrapMemoryContext(raw: string | undefined | null): string {
   if (!raw || !raw.trim()) return raw ?? "";
   // Strip any pre-existing <system-reminder>...</system-reminder> blocks from the
-  // input before re-wrapping. Without this, laqrumcode's wrapper ends up nested
+  // input before re-wrapping. Without this, sould's wrapper ends up nested
   // inside Claude Code's harness wrapper (or a prior hook's wrapper), which
   // shows visibly to the model and suggests sloppy concatenation.
   // Only the <system-reminder> wrapper. This used to be stripStructuralTags,
   // which also deletes <recalled_memory>, <active_directives> and
-  // <session_directives> — laqrumcode's own section tags, added moments
+  // <session_directives> — sould's own section tags, added moments
   // earlier — so none of them ever reached the model. Content is sanitized
   // where it enters the block instead (graph-context formatContextMessage).
   const stripped = stripReminderWrapper(raw).trim();
@@ -88,7 +88,7 @@ export async function handleUserPromptSubmit(
   if (state.store.isAvailable() && !session.surrealSessionId) {
     try {
       if (!session.agentId) {
-        session.agentId = await state.store.ensureAgent("laqrumcode", "claude");
+        session.agentId = await state.store.ensureAgent("sould", "claude");
       }
       session.surrealSessionId = await state.store.ensureSessionRow(
         session.sessionId,
@@ -136,7 +136,7 @@ export async function handleUserPromptSubmit(
   ingestTurn(state, session, "user", userPrompt)
     .catch(e => swallow.warn("user-prompt:ingestTurn", e));
 
-  // 0.7.44: bypass sigil. Prefix with `*` or `/raw` to suppress laqrumcode's
+  // 0.7.44: bypass sigil. Prefix with `*` or `/raw` to suppress sould's
   // injection for that turn. Turn ingestion still fires (we want history
   // tracked); only the substrate retrieval + assembly is skipped. Useful
   // when the user wants a clean shot at the model without the substrate
@@ -171,17 +171,17 @@ export async function handleUserPromptSubmit(
 
   let pendingWorkMessage = "";
   if (pendingCount > 0) {
-    pendingWorkMessage = `\n\n<laqrumcode_pending_work>
-LaqrumCode has ${pendingCount} pending memory operation${pendingCount > 1 ? "s" : ""} from previous sessions (extraction, reflection, skills, soul).
+    pendingWorkMessage = `\n\n<sould_pending_work>
+Sould has ${pendingCount} pending memory operation${pendingCount > 1 ? "s" : ""} from previous sessions (extraction, reflection, skills, soul).
 
 IMPORTANT: Spawn a background agent to process these. Use:
-- subagent_type: "laqrumcode:memory-extractor"
+- subagent_type: "sould:memory-extractor"
 - model: opus (highest intelligence for knowledge extraction)
 - run_in_background: true
-- Prompt: "Process all pending LaqrumCode memory work. Loop: call fetch_pending_work to get the next item, analyze the data according to the instructions provided, then call commit_work_results with your output. Repeat until fetch_pending_work returns empty. Be thorough in your extractions — this is the intelligence layer."
+- Prompt: "Process all pending Sould memory work. Loop: call fetch_pending_work to get the next item, analyze the data according to the instructions provided, then call commit_work_results with your output. Repeat until fetch_pending_work returns empty. Be thorough in your extractions — this is the intelligence layer."
 
 This runs silently in the background. Respond to the user normally.
-</laqrumcode_pending_work>`;
+</sould_pending_work>`;
     log.info(`[pending_work] ${pendingCount} items queued for subagent processing`);
   }
 

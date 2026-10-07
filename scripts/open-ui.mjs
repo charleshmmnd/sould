@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Open the laqrumcode read-only web UI (GH #15) in the default browser.
+ * Open the sould read-only web UI (GH #15) in the default browser.
  *
- * Reads the daemon's auth token (~/.laqrumcode/cache/auth-token, written by
+ * Reads the daemon's auth token (~/.sould/cache/auth-token, written by
  * src/http-api.ts), mints a SINGLE-USE 60s nonce over the Bearer-authed
  * loopback API (POST /ui/mint), and opens /ui/auth?nonce=… which sets an
  * HttpOnly cookie and redirects to the app. The master token never appears
@@ -10,7 +10,7 @@
  * (LAQ-SEC-001).
  *
  * Port: imported directly from uiPort() in dist/ui-server.js — the single
- * source of truth the daemon binds with (LAQRUMCODE_UI_PORT override, else the
+ * source of truth the daemon binds with (SOULD_UI_PORT override, else the
  * UID-offset default). Loopback only. Never recompute the port here.
  */
 import { readFileSync } from "node:fs";
@@ -25,13 +25,13 @@ import { platform, homedir } from "node:os";
 // one). Importing the function eliminates the duplication for good.
 import { uiPort } from "../dist/ui-server.js";
 
-const tokenPath = join(homedir(), ".laqrumcode", "cache", "auth-token");
+const tokenPath = join(homedir(), ".sould", "cache", "auth-token");
 let token;
 try {
   token = readFileSync(tokenPath, "utf8").trim();
 } catch {
   console.error(`No auth token at ${tokenPath}.`);
-  console.error("The laqrumcode daemon writes it on start — trigger the daemon with any laqrumcode MCP call (e.g. memory_health), then retry.");
+  console.error("The sould daemon writes it on start — trigger the daemon with any sould MCP call (e.g. memory_health), then retry.");
   process.exit(1);
 }
 if (!token) {
@@ -57,13 +57,13 @@ try {
   ({ nonce } = await resp.json());
   if (!nonce) throw new Error("mint returned no nonce");
 } catch (e) {
-  console.error(`Could not reach the laqrumcode UI on port ${port}: ${e?.message ?? e}`);
-  console.error("Is the daemon running? Trigger it with any laqrumcode MCP call (e.g. memory_health), then retry.");
+  console.error(`Could not reach the sould UI on port ${port}: ${e?.message ?? e}`);
+  console.error("Is the daemon running? Trigger it with any sould MCP call (e.g. memory_health), then retry.");
   process.exit(1);
 }
 const url = `http://127.0.0.1:${port}/ui/auth?nonce=${nonce}`;
 
-console.log(`laqrumcode web UI → http://127.0.0.1:${port}/ui`);
+console.log(`sould web UI → http://127.0.0.1:${port}/ui`);
 console.log("Opening your browser…  (if it doesn't open, paste this single-use URL within 60s):");
 console.log(`  ${url}`);
 

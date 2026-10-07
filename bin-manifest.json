@@ -1,5 +1,5 @@
 {
-  "$comment": "Pinned SurrealDB binary release. Bumped manually when laqrumcode is tested against a newer SurrealDB version. Per-platform sha256 verified against the GitHub release artifact.",
+  "$comment": "Pinned SurrealDB binary release. Bumped manually when sould is tested against a newer SurrealDB version. Per-platform sha256 verified against the GitHub release artifact.",
   "surrealdb": {
     "version": "3.1.4",
     "releaseUrl": "https://github.com/surrealdb/surrealdb/releases/download/v{version}/surreal-v{version}.{platform}.{ext}",

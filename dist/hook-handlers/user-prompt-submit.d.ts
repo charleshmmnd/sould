@@ -10,7 +10,7 @@
  */
 import type { GlobalPluginState } from "../engine/state.js";
 import { type HookResponse } from "../http-api.js";
-/** Wrap raw laqrumcode context in a system-reminder block. Claude Code's harness
+/** Wrap raw sould context in a system-reminder block. Claude Code's harness
  * gives system-reminder blocks higher attention weight than plain injected
  * text — empirically the plain-text injection was hitting ~10% retrieval
  * utilization because the model read it as ambient noise.

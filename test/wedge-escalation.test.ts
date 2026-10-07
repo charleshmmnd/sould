@@ -89,7 +89,7 @@ describe("WedgeDetector", () => {
   it("default thresholds are sane and the floor respects its env clamp", () => {
     expect(WEDGE_DEFAULTS.minTimeouts).toBeGreaterThanOrEqual(5);
     expect(WEDGE_DEFAULTS.minHeals).toBeGreaterThanOrEqual(2);
-    // Clamped [30s, 1h]; default 180s when LAQRUMCODE_WEDGE_STREAK_MS unset.
+    // Clamped [30s, 1h]; default 180s when SOULD_WEDGE_STREAK_MS unset.
     expect(WEDGE_DEFAULTS.minStreakMs).toBeGreaterThanOrEqual(30_000);
     expect(WEDGE_DEFAULTS.minStreakMs).toBeLessThanOrEqual(3_600_000);
   });
@@ -161,18 +161,18 @@ describe("SurrealStore wedge wiring", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it("LAQRUMCODE_WEDGE_EXIT_DISABLED=1 suppresses the handler (log-only escape hatch)", async () => {
+  it("SOULD_WEDGE_EXIT_DISABLED=1 suppresses the handler (log-only escape hatch)", async () => {
     const store = makeStore();
     (store as any).wedge = new WedgeDetector({ minTimeouts: 1, minHeals: 0, minStreakMs: 0 });
     (store as any).db = { query: () => new Promise(() => {}) };
     const handler = vi.fn();
     store.setIrrecoverableWedgeHandler(handler);
-    process.env.LAQRUMCODE_WEDGE_EXIT_DISABLED = "1";
+    process.env.SOULD_WEDGE_EXIT_DISABLED = "1";
     try {
       await expect((store as any).deadlineQuery("RETURN 1", undefined, 10)).rejects.toThrow();
       expect(handler).not.toHaveBeenCalled();
     } finally {
-      delete process.env.LAQRUMCODE_WEDGE_EXIT_DISABLED;
+      delete process.env.SOULD_WEDGE_EXIT_DISABLED;
     }
   });
 

@@ -29,8 +29,8 @@ let tmp: string;
 let savedStorePathEnv: string | undefined;
 
 beforeAll(() => {
-  savedStorePathEnv = process.env.LAQRUMCODE_STORE_PATH;
-  delete process.env.LAQRUMCODE_STORE_PATH; // storePath must resolve via config.paths.dataDir
+  savedStorePathEnv = process.env.SOULD_STORE_PATH;
+  delete process.env.SOULD_STORE_PATH; // storePath must resolve via config.paths.dataDir
   tmp = mkdtempSync(join(tmpdir(), "kc-amp-test-"));
   const f = join(tmp, "store.vlog");
   writeFileSync(f, "");
@@ -38,7 +38,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  if (savedStorePathEnv !== undefined) process.env.LAQRUMCODE_STORE_PATH = savedStorePathEnv;
+  if (savedStorePathEnv !== undefined) process.env.SOULD_STORE_PATH = savedStorePathEnv;
   rmSync(tmp, { recursive: true, force: true });
 });
 

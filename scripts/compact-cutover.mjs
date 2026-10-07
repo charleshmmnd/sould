@@ -5,7 +5,7 @@
  *
  * Companion to compact-store.mjs (which migrates ONE namespace and prints a
  * MANUAL runbook). The kongdb instance is SHARED: it hosts BOTH `laqrum`
- * (laqrumcode prod) AND `kong` (kongcode prod, ~317k rows). A cutover MUST
+ * (sould prod) AND `kong` (kongcode prod, ~317k rows). A cutover MUST
  * migrate both into the fresh store or kongcode is lost. This tool does that,
  * reusing compact-store.mjs's proven import + id-diff-repair logic verbatim
  * (only generalized to take (ns,db) per call).
@@ -24,8 +24,8 @@
  *             dst = the live new store; copies any rows written during the
  *             migration window). Guarantees no data loss vs the old store.
  *
- * Env: SURREAL_USER/PASS (root/root), LAQRUMCODE_COMPACT_STAGE_DIR
- *      (/mnt/money/voidorigin/laqrumcode-compact), image surrealdb/surrealdb:v3.1.4.
+ * Env: SURREAL_USER/PASS (root/root), SOULD_COMPACT_STAGE_DIR
+ *      (/mnt/money/voidorigin/sould-compact), image surrealdb/surrealdb:v3.1.4.
  * NEVER deletes the old store. Production swap is done by the human-run bash
  * around this tool, not by this tool.
  */
@@ -35,10 +35,10 @@ import { join } from "node:path";
 
 import { resolveScriptCred } from "./surreal-cred.mjs";
 const { user: USER, pass: PASS } = resolveScriptCred();
-const STAGE = process.env.LAQRUMCODE_COMPACT_STAGE_DIR || "/mnt/money/voidorigin/laqrumcode-compact";
+const STAGE = process.env.SOULD_COMPACT_STAGE_DIR || "/mnt/money/voidorigin/sould-compact";
 const IMAGE = "surrealdb/surrealdb:v3.1.4";
-const SCRATCH = "laqrumcode-cutover-build";
-const PORT = Number(process.env.LAQRUMCODE_COMPACT_PORT) || 8940;
+const SCRATCH = "sould-cutover-build";
+const PORT = Number(process.env.SOULD_COMPACT_PORT) || 8940;
 const FRESH_DIR = join(STAGE, "fresh-store");      // bind -> /mydata
 const STORE_SUBDIR = "kongdb";                       // matches prod: surrealkv:/mydata/kongdb
 const AUTH = "Basic " + Buffer.from(`${USER}:${PASS}`).toString("base64");

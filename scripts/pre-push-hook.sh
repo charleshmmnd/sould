@@ -1,5 +1,5 @@
 #!/bin/sh
-# laqrumcode pre-push hook — gates pushes on the full vitest suite.
+# sould pre-push hook — gates pushes on the full vitest suite.
 #
 # Install from a fresh clone:
 #   cp scripts/pre-push-hook.sh .git/hooks/pre-push && chmod +x .git/hooks/pre-push
@@ -15,7 +15,7 @@
 #   git push --no-verify       # skip the hook entirely
 #
 # Note: the gate intentionally does NOT run `npm run build` here. dist/ is
-# expected to be committed alongside source per the laqrumcode-release skill
+# expected to be committed alongside source per the sould-release skill
 # (the ship-dist-with-source pattern). If you're pushing a release commit,
 # run `npm run build && npm test` BEFORE staging dist/ so the committed
 # artifacts match the source.

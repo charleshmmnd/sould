@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * compact-store.mjs — export the laqrumcode graph and import it into a FRESH
+ * compact-store.mjs — export the sould graph and import it into a FRESH
  * SurrealDB store (new major version), reclaiming append-only value-log
  * garbage and rebuilding every index from clean state.
  *
@@ -26,9 +26,9 @@
  *   node scripts/compact-store.mjs                 # test mode
  *   node scripts/compact-store.mjs --cleanup       # test then remove scratch
  * Env: SURREAL_URL/USER/PASS/NS/DB (defaults = production),
- *      LAQRUMCODE_COMPACT_NEW_VERSION (default v3.1.4),
- *      LAQRUMCODE_COMPACT_PORT (default 8940),
- *      LAQRUMCODE_COMPACT_STAGE_DIR (default /mnt/money/voidorigin/laqrumcode-compact)
+ *      SOULD_COMPACT_NEW_VERSION (default v3.1.4),
+ *      SOULD_COMPACT_PORT (default 8940),
+ *      SOULD_COMPACT_STAGE_DIR (default /mnt/money/voidorigin/sould-compact)
  */
 import { execSync } from "node:child_process";
 import { mkdirSync, statSync, createWriteStream } from "node:fs";
@@ -40,11 +40,11 @@ import { resolveScriptCred } from "./surreal-cred.mjs";
 const { user: USER, pass: PASS } = resolveScriptCred();
 const NS = process.env.SURREAL_NS || "laqrum";
 const DB = process.env.SURREAL_DB || "memory";
-const NEW_VERSION = process.env.LAQRUMCODE_COMPACT_NEW_VERSION || "v3.1.4";
-const PORT = Number(process.env.LAQRUMCODE_COMPACT_PORT) || 8940;
-const STAGE = process.env.LAQRUMCODE_COMPACT_STAGE_DIR || "/mnt/money/voidorigin/laqrumcode-compact";
+const NEW_VERSION = process.env.SOULD_COMPACT_NEW_VERSION || "v3.1.4";
+const PORT = Number(process.env.SOULD_COMPACT_PORT) || 8940;
+const STAGE = process.env.SOULD_COMPACT_STAGE_DIR || "/mnt/money/voidorigin/sould-compact";
 const CLEANUP = process.argv.includes("--cleanup");
-const SCRATCH = "laqrumcode-compact-test";
+const SCRATCH = "sould-compact-test";
 
 function sh(cmd) { return execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); }
 
@@ -306,11 +306,11 @@ async function main() {
   } else if (verdict) {
     console.log(`
   CUTOVER RUNBOOK (manual — this script never touches production):
-    1. Stop writers: kill the laqrumcode daemon (it respawns against the new store after cutover).
+    1. Stop writers: kill the sould daemon (it respawns against the new store after cutover).
     2. Re-export + re-import for freshness (writes since this test), or accept the small gap.
     3. sudo docker stop <prod-container>   # old 65GB store stays on disk as the rollback
     4. Point the production container/compose at surrealdb/surrealdb:${NEW_VERSION} with the fresh store dir (${dataDir}), keeping host port 8000.
-    5. Start it; laqrumcode reconnects automatically; verify with memory_health (index_sanity should clear).
+    5. Start it; sould reconnects automatically; verify with memory_health (index_sanity should clear).
     6. After a comfortable soak, archive/delete the old store dir to reclaim ~65GB.
   Scratch container '${SCRATCH}' left running on :${PORT} for inspection.`);
   }

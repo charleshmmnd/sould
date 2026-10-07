@@ -1,6 +1,6 @@
 /**
  * Introspect tool — inspect the memory database.
- * Ported from laqrumbrain with SurrealStore injection.
+ * Ported from souldbrain with SurrealStore injection.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -157,7 +157,7 @@ export function createIntrospectToolDef(state, session) {
 async function soulAction(store) {
     const soul = await getSoul(store);
     if (!soul) {
-        return { content: [{ type: "text", text: "No soul document yet (soul:laqrumbrain is absent)." }], details: null };
+        return { content: [{ type: "text", text: "No soul document yet (soul:souldbrain is absent)." }], details: null };
     }
     const mask = (v) => {
         let t = typeof v === "string" ? v : (v === undefined || v === null ? "" : JSON.stringify(v));
@@ -166,7 +166,7 @@ async function soulAction(store) {
         return t;
     };
     const lines = [];
-    lines.push("SOUL DOCUMENT (soul:laqrumbrain)");
+    lines.push("SOUL DOCUMENT (soul:souldbrain)");
     lines.push("═══════════════════════════════════");
     lines.push(`created ${mask(soul.created_at)} | updated ${mask(soul.updated_at)} | revisions ${(soul.revisions ?? []).length}`);
     const section = (title, entries) => {
@@ -639,7 +639,7 @@ function pad(s, w) {
 // This is a pure consumer — it never writes — so there is no race with the
 // daemon's appends. If the on-disk schema in auto-drain.ts changes, this
 // reader must change in lockstep (the test fixture pins the current shape).
-/** Default DB-size alert threshold in GB. Override via LAQRUMCODE_DB_SIZE_ALERT_GB. */
+/** Default DB-size alert threshold in GB. Override via SOULD_DB_SIZE_ALERT_GB. */
 const DEFAULT_DB_SIZE_ALERT_GB = 2;
 /** Default auto-drain daily budget — mirrors daemon/index.ts drainMaxDaily. */
 const DEFAULT_DRAIN_MAX_DAILY = 50;
@@ -785,7 +785,7 @@ async function totalCount(store, table) {
  *  non-managed port (e.g. an :8000 Docker container, where no SURREAL_URL is
  *  set — the case the old `!!process.env.SURREAL_URL` check missed). Keyed on
  *  the connected port vs the managed-surface ports (pickPort + legacy 18765),
- *  matching how findExistingLaqrumcodeSurreal decides managed-vs-external. */
+ *  matching how findExistingSouldSurreal decides managed-vs-external. */
 export function isConnectedDbExternal(connectedUrl) {
     if (process.env.SURREAL_URL)
         return true;
@@ -802,7 +802,7 @@ export async function statsAction(state) {
     const { store, config } = state;
     // Budget + alert thresholds (env-configurable, mirroring daemon defaults).
     const maxDaily = (() => {
-        const env = process.env.LAQRUMCODE_AUTO_DRAIN_MAX_DAILY;
+        const env = process.env.SOULD_AUTO_DRAIN_MAX_DAILY;
         if (env !== undefined) {
             const n = Number(env);
             return Number.isFinite(n) && n >= 0 ? n : DEFAULT_DRAIN_MAX_DAILY;
@@ -810,7 +810,7 @@ export async function statsAction(state) {
         return DEFAULT_DRAIN_MAX_DAILY;
     })();
     const dbSizeAlertGb = (() => {
-        const env = process.env.LAQRUMCODE_DB_SIZE_ALERT_GB;
+        const env = process.env.SOULD_DB_SIZE_ALERT_GB;
         if (env !== undefined) {
             const n = Number(env);
             return Number.isFinite(n) && n > 0 ? n : DEFAULT_DB_SIZE_ALERT_GB;
@@ -852,7 +852,7 @@ export async function statsAction(state) {
         alerts.push({
             code: "db.size_over_threshold",
             severity: "warn",
-            message: `DB size on disk (${formatBytes(dbSizeBytes)}) exceeds the ${dbSizeAlertGb}GB alert threshold (LAQRUMCODE_DB_SIZE_ALERT_GB)`,
+            message: `DB size on disk (${formatBytes(dbSizeBytes)}) exceeds the ${dbSizeAlertGb}GB alert threshold (SOULD_DB_SIZE_ALERT_GB)`,
         });
     }
     const details = {

@@ -2,14 +2,14 @@
 /**
  * Drop ONLY the ephemeral vitest temp namespaces + the old-brand test ns from
  * the target SurrealDB instance. Targets: kctest_* and kong_test.
- * NEVER touches kong / laqrum / laqrum_test / main.
+ * NEVER touches kong / laqrum / sould_test / main.
  *
  * LAQ-SEC-007 rewrite of the old drop-test-namespaces.sh, which used
  * `curl -u root:root` — a credential the hardening rotated away, passed via
  * argv (world-readable through /proc while curl runs). Namespace removal
  * needs OWNER, so credentials resolve as:
  *   1. SURREAL_ADMIN_USER + SURREAL_ADMIN_PASS env
- *   2. ~/.laqrumcode/surreal-admin-cred.json (written by rotate-root-cred.mjs)
+ *   2. ~/.sould/surreal-admin-cred.json (written by rotate-root-cred.mjs)
  * There is no root:root fallback — a hardened instance rejects it and an
  * unhardened one should be hardened first (scripts/rotate-root-cred.mjs).
  */
@@ -18,19 +18,19 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 
 const URL = process.env.SURREAL_URL || "ws://localhost:8000/rpc";
-const KEEP = new Set(["kong", "laqrum", "laqrum_test", "main"]);
+const KEEP = new Set(["kong", "laqrum", "sould_test", "main"]);
 const TARGET_RE = /^(kctest_[A-Za-z0-9_]+|kong_test)$/;
 
 function adminCred() {
   if (process.env.SURREAL_ADMIN_USER && process.env.SURREAL_ADMIN_PASS) {
     return { user: process.env.SURREAL_ADMIN_USER, pass: process.env.SURREAL_ADMIN_PASS };
   }
-  const path = homedir() + "/.laqrumcode/surreal-admin-cred.json";
+  const path = homedir() + "/.sould/surreal-admin-cred.json";
   try {
     const c = JSON.parse(readFileSync(path, "utf8"));
     if (c?.user && c?.pass) return { user: c.user, pass: c.pass };
   } catch { /* fall through to the error below */ }
-  console.error("No admin credential: set SURREAL_ADMIN_USER/PASS or run scripts/rotate-root-cred.mjs first (writes ~/.laqrumcode/surreal-admin-cred.json).");
+  console.error("No admin credential: set SURREAL_ADMIN_USER/PASS or run scripts/rotate-root-cred.mjs first (writes ~/.sould/surreal-admin-cred.json).");
   process.exit(1);
 }
 

@@ -1,9 +1,9 @@
 ---
-name: laqrumcode-forget
-description: Selectively and REVERSIBLY forget stored memories/concepts (privacy / declutter) — soft-deactivate content matching a query or date so it stops surfacing in retrieval. Use when the user wants sensitive or unwanted data out of their laqrumcode graph.
+name: sould-forget
+description: Selectively and REVERSIBLY forget stored memories/concepts (privacy / declutter) — soft-deactivate content matching a query or date so it stops surfacing in retrieval. Use when the user wants sensitive or unwanted data out of their sould graph.
 ---
 
-# laqrumcode forget (reversible)
+# sould forget (reversible)
 
 Soft-forget content so it stops surfacing in retrieval. Honors the D4 founder
 rule — **nothing is deleted**; matching rows are soft-deactivated with an audit

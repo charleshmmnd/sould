@@ -13,7 +13,7 @@ describe("MCP handshake ordering (issue #4)", () => {
 
     const proc = spawn("node", [DIST_PATH], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, LAQRUMCODE_LOG_LEVEL: "error" },
+      env: { ...process.env, SOULD_LOG_LEVEL: "error" },
     });
 
     try {
@@ -24,7 +24,7 @@ describe("MCP handshake ordering (issue #4)", () => {
         params: {
           protocolVersion: "2024-11-05",
           capabilities: {},
-          clientInfo: { name: "laqrumcode-handshake-test", version: "0.0.1" },
+          clientInfo: { name: "sould-handshake-test", version: "0.0.1" },
         },
       }) + "\n";
 

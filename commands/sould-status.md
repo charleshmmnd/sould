@@ -1,9 +1,9 @@
 ---
-description: Show overall LaqrumCode system health and memory statistics
-allowed-tools: ["mcp__plugin_laqrumcode_laqrumcode__introspect"]
+description: Show overall Sould system health and memory statistics
+allowed-tools: ["mcp__plugin_sould_sould__introspect"]
 ---
 
-Show the overall health and statistics of the LaqrumCode memory system.
+Show the overall health and statistics of the Sould memory system.
 
 1. Call `introspect` with action `status` to get the health overview
 2. Present a clear dashboard showing:

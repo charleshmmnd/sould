@@ -1,7 +1,7 @@
 /**
- * Prepend laqrumcode's runtime-downloaded node_modules dir to NODE_PATH.
+ * Prepend sould's runtime-downloaded node_modules dir to NODE_PATH.
  *
- * When laqrumcode-mcp ships as a SEA-bundled binary, its bundled JS contains
+ * When sould-mcp ships as a SEA-bundled binary, its bundled JS contains
  * MCP SDK code that calls require("ajv/...") at runtime. SEA executables
  * have no adjacent node_modules — Node's module resolution would fail with
  * MODULE_NOT_FOUND.

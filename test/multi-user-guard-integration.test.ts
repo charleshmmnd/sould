@@ -1,12 +1,12 @@
 /**
- * GH #13 — INTEGRATED owner-guard test for findExistingLaqrumcodeSurreal.
+ * GH #13 — INTEGRATED owner-guard test for findExistingSouldSurreal.
  *
  * The implementer's multi-user-isolation.test.ts unit-tested the /proc helper
  * (findListenerUidViaProc) and pickPort, but NOT the guard's *effect on
- * discovery* — i.e. that findExistingLaqrumcodeSurreal actually SKIPS a port
- * whose live, laqrumcode-fingerprinted SurrealDB is owned by a foreign UID.
- * This file closes that gap by driving the REAL findExistingLaqrumcodeSurreal
- * against a REAL throwaway SurrealDB (so fetch /health + isLaqrumcodeSurreal both
+ * discovery* — i.e. that findExistingSouldSurreal actually SKIPS a port
+ * whose live, sould-fingerprinted SurrealDB is owned by a foreign UID.
+ * This file closes that gap by driving the REAL findExistingSouldSurreal
+ * against a REAL throwaway SurrealDB (so fetch /health + isSouldSurreal both
  * genuinely PASS), while injecting the owner-UID resolver to simulate a foreign
  * vs. own owner without needing a second OS account.
  *
@@ -26,15 +26,15 @@ import { mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir, homedir } from "node:os";
 import {
-  findExistingLaqrumcodeSurreal,
+  findExistingSouldSurreal,
   LEGACY_MANAGED_SURREAL_PORT,
   buildExternalCredChain,
   readManagedCred,
 } from "../src/engine/bootstrap.js";
 
 const SURREAL_BIN =
-  process.env.LAQRUMCODE_SURREAL_BIN ??
-  join(process.env.HOME ?? "/home/zero", ".laqrumcode/cache/surreal-3.0.5/surreal");
+  process.env.SOULD_SURREAL_BIN ??
+  join(process.env.HOME ?? "/home/zero", ".sould/cache/surreal-3.0.5/surreal");
 
 // Ephemeral high port unlikely to collide with the real managed/legacy ports.
 const TEST_PORT = 28765;
@@ -63,7 +63,7 @@ async function httpAlive(port: number, ms = 800): Promise<boolean> {
   }
 }
 
-/** Seed ns=laqrum / db=memory with a fingerprint table so isLaqrumcodeSurreal
+/** Seed ns=laqrum / db=memory with a fingerprint table so isSouldSurreal
  *  passes. SurrealDB v3 + surrealkv does NOT auto-create the namespace/database
  *  on a bare DEFINE TABLE, and INFO FOR DB against a missing ns/db fails with a
  *  read-only-transaction error — so we must explicitly DEFINE the ns, db, and
@@ -153,7 +153,7 @@ const ownOnlyTestPort = (port: number): number => (port === TEST_PORT ? OUR_UID 
 const undeterminedOnTestPort = (port: number): number | null =>
   port === TEST_PORT ? null : FOREIGN_UID;
 
-describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => {
+describe("findExistingSouldSurreal owner guard (GH #13 integrated)", () => {
   afterEach(() => {
     for (const d of tmpDirs) {
       try { rmSync(join(d, "surreal.pid"), { force: true }); } catch { /* ok */ }
@@ -165,7 +165,7 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
   // even though the fingerprint PASSES against the live DB.
   itLive("BREACH GUARD: skips a fingerprinted port owned by a FOREIGN uid (managed port)", async () => {
     const cacheDir = mkTmp("cache-foreign-managed");
-    const result = await findExistingLaqrumcodeSurreal(
+    const result = await findExistingSouldSurreal(
       cacheDir,
       TEST_PORT, // treat the test port as THIS user's managed port
       USER,
@@ -178,12 +178,12 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
   // Foreign owner reported for a NON-managed (external-class) candidate must
   // ALSO be skipped — the `ownerUid != ourUid` branch fires regardless of port
   // class. We assert this against the live external port 8000 (read-only): the
-  // production laqrumcode DB there genuinely fingerprints PASS, but a resolver
+  // production sould DB there genuinely fingerprints PASS, but a resolver
   // reporting a foreign uid must force a skip rather than adopt it.
   itLive("BREACH GUARD: foreign uid on EXTERNAL port (8000) → skipped (no false adopt)", async () => {
     if (!(await httpAlive(8000))) return; // only if a live DB is on 8000
     const cacheDir = mkTmp("cache-foreign-8000");
-    const result = await findExistingLaqrumcodeSurreal(
+    const result = await findExistingSouldSurreal(
       cacheDir,
       19999, // dead managed port
       USER,
@@ -197,7 +197,7 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
   // ── REUSE PATH (a): own owner determined → ADOPT ───────────────────────
   itLive("REUSE: adopts the port when the resolver reports OUR uid", async () => {
     const cacheDir = mkTmp("cache-own-uid");
-    const result = await findExistingLaqrumcodeSurreal(
+    const result = await findExistingSouldSurreal(
       cacheDir,
       TEST_PORT,
       USER,
@@ -212,7 +212,7 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
   // ── OWNER-UNDETERMINED on managed surface, NO pid file → SKIP ──────────
   itLive("CONSERVATIVE SKIP: owner undetermined + managed port + no pid file → skip", async () => {
     const cacheDir = mkTmp("cache-unknown-nopid");
-    const result = await findExistingLaqrumcodeSurreal(
+    const result = await findExistingSouldSurreal(
       cacheDir,
       TEST_PORT,
       USER,
@@ -228,7 +228,7 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
     const cacheDir = mkTmp("cache-unknown-pid");
     // Write a real, LIVE pid file (use our own process pid — guaranteed alive).
     writeFileSync(join(cacheDir, "surreal.pid"), String(process.pid), "utf-8");
-    const result = await findExistingLaqrumcodeSurreal(
+    const result = await findExistingSouldSurreal(
       cacheDir,
       TEST_PORT,
       USER,
@@ -246,7 +246,7 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
     const cacheDir = mkTmp("cache-unknown-stalepid");
     // PID 2^31-ish: astronomically unlikely to be live.
     writeFileSync(join(cacheDir, "surreal.pid"), "2147480000", "utf-8");
-    const result = await findExistingLaqrumcodeSurreal(
+    const result = await findExistingSouldSurreal(
       cacheDir,
       TEST_PORT,
       USER,
@@ -260,7 +260,7 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
   // Proves the managed-surface adopt path does not fabricate a pid.
   itLive("REUSE: own uid on managed port with NO pid file → adopt, pid null", async () => {
     const cacheDir = mkTmp("cache-own-nopid");
-    const result = await findExistingLaqrumcodeSurreal(
+    const result = await findExistingSouldSurreal(
       cacheDir,
       TEST_PORT,
       USER,
@@ -282,7 +282,7 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
     // @ts-expect-error — simulate non-POSIX (Windows): remove getuid.
     delete process.getuid;
     try {
-      const result = await findExistingLaqrumcodeSurreal(
+      const result = await findExistingSouldSurreal(
         cacheDir,
         TEST_PORT,
         USER,
@@ -304,15 +304,15 @@ describe("findExistingLaqrumcodeSurreal owner guard (GH #13 integrated)", () => 
 
 // ── EXTERNAL shared-infra ALLOW, undetermined owner (8000/8042 contract) ──
 // Regression guard: the pre-#13 external-DB reuse must still hold. A
-// fingerprinted laqrumcode DB on an EXTERNAL port (8000/8042) with an
+// fingerprinted sould DB on an EXTERNAL port (8000/8042) with an
 // UNDETERMINED owner must still be ADOPTED (it is NOT in managedSurfacePorts,
 // so the conservative skip cannot fire). Asserted against the live 8000 DB
-// READ-ONLY (findExistingLaqrumcodeSurreal performs only /health + INFO FOR DB).
-describe("findExistingLaqrumcodeSurreal external-port allow (GH #13, undetermined owner)", () => {
+// READ-ONLY (findExistingSouldSurreal performs only /health + INFO FOR DB).
+describe("findExistingSouldSurreal external-port allow (GH #13, undetermined owner)", () => {
   itLive("ADOPTS external port 8000 (live, read-only) when owner is undetermined", async () => {
     if (!(await httpAlive(8000))) return; // requires the production-style DB on 8000
     const cacheDir = mkTmp("cache-extallow-8000");
-    const result = await findExistingLaqrumcodeSurreal(
+    const result = await findExistingSouldSurreal(
       cacheDir,
       19999, // dead managed port → 8000 is the first live, fingerprinted candidate
       USER,
@@ -326,7 +326,7 @@ describe("findExistingLaqrumcodeSurreal external-port allow (GH #13, undetermine
       buildExternalCredChain({
         credsExplicit: false,
         configured: { user: USER, pass: PASS },
-        fileCred: readManagedCred(join(homedir(), ".laqrumcode", "cache")),
+        fileCred: readManagedCred(join(homedir(), ".sould", "cache")),
       }),
     );
     expect(result).not.toBeNull();

@@ -59,5 +59,5 @@ export function loadSchema() {
             lastErr = err;
         }
     }
-    throw new Error(`laqrumcode: schema.surql not found in any candidate path. Last error: ${lastErr?.message ?? "unknown"}`);
+    throw new Error(`sould: schema.surql not found in any candidate path. Last error: ${lastErr?.message ?? "unknown"}`);
 }

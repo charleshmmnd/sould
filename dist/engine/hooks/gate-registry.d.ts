@@ -2,9 +2,9 @@
  * Extensible gate registry.
  *
  * Gates are PreToolUse checks that can deny tool calls based on profile,
- * tool type, and context. Three built-in gates ship with laqrumcode
+ * tool type, and context. Three built-in gates ship with sould
  * (config-protection, edit-gate, bash-gate). Users add arbitrary gates
- * via ~/.laqrumcode/gates.json — no code changes required.
+ * via ~/.sould/gates.json — no code changes required.
  *
  * The registry runs all active gates in priority order (lowest first)
  * on each PreToolUse invocation. First deny wins.
@@ -23,7 +23,7 @@ export interface GateContext {
     payload: Record<string, unknown>;
 }
 export interface GateDefinition {
-    /** Stable id — used with LAQRUMCODE_DISABLED_HOOKS to selectively disable. */
+    /** Stable id — used with SOULD_DISABLED_HOOKS to selectively disable. */
     id: string;
     description?: string;
     /** Which hook profiles activate this gate. */
@@ -32,7 +32,7 @@ export interface GateDefinition {
     tools?: ReadonlySet<string>;
     /** Lower runs first. Default 50. Built-ins use 10/20/30. */
     priority?: number;
-    /** Origin: "builtin" for shipped gates, "config" for ~/.laqrumcode/gates.json. */
+    /** Origin: "builtin" for shipped gates, "config" for ~/.sould/gates.json. */
     source?: "builtin" | "config";
     /** Return null to allow, HookResponse to deny. */
     check(ctx: GateContext): Promise<HookResponse | null>;

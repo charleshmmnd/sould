@@ -184,7 +184,7 @@ export interface GcHardDeleteOpts {
 /** Resolve the gc-backups directory under the configured cache dir. */
 function gcBackupDir(state: GlobalPluginState): string {
   const cacheDir =
-    state.config?.paths?.cacheDir ?? join(homedir(), ".laqrumcode", "cache");
+    state.config?.paths?.cacheDir ?? join(homedir(), ".sould", "cache");
   return join(cacheDir, "gc-backups");
 }
 
@@ -422,7 +422,7 @@ export async function gcHardDelete(
   );
 
   const snapshotLines: string[] = [];
-  snapshotLines.push(`-- laqrumcode gcHardDelete snapshot`);
+  snapshotLines.push(`-- sould gcHardDelete snapshot`);
   snapshotLines.push(`-- reason: ${reason}`);
   snapshotLines.push(`-- table: ${table}`);
   snapshotLines.push(`-- ids: ${idStrings.join(", ")}`);
@@ -671,7 +671,7 @@ export async function gcSweepOrphanedEdges(
   const perTable: Record<string, number> = {};
   const baselineLive: Record<string, number> = {};
   const snapshotLines: string[] = [
-    `-- laqrumcode gcSweepOrphanedEdges snapshot`,
+    `-- sould gcSweepOrphanedEdges snapshot`,
     `-- reason: ${reason}`,
     `-- generated_at: ${new Date().toISOString()}`,
     `-- detector: ${ORPHAN_PRED} (absent endpoint record)`,

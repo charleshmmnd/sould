@@ -1,4 +1,4 @@
-# LaqrumCode Graph Schema
+# Sould Graph Schema
 
 ## Tables (25)
 

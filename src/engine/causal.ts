@@ -6,7 +6,7 @@
  * (bug->investigation->fix->outcome) and creates causal chains linking memories.
  * During retrieval, traverses causal edges to pull full chains as context.
  *
- * Ported from laqrumbrain — takes SurrealStore/EmbeddingService as params.
+ * Ported from souldbrain — takes SurrealStore/EmbeddingService as params.
  */
 
 import type { EmbeddingService } from "./embeddings.js";

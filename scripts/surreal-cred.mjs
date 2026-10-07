@@ -6,7 +6,7 @@
  *   1. SURREAL_USER + SURREAL_PASS env — explicit operator intent, verbatim.
  *      (Half-set env is treated as explicit too, so a typo fails loudly
  *      instead of silently falling back to a different identity.)
- *   2. The managed per-user cred file (~/.laqrumcode/surreal-cred.json) — the
+ *   2. The managed per-user cred file (~/.sould/surreal-cred.json) — the
  *      secret the daemon itself uses; present on any machine with a managed
  *      or hardened instance.
  *   3. Legacy root:root default — pre-hardening compatibility only.
@@ -24,7 +24,7 @@ export function resolveScriptCred() {
   if (envUser || envPass) {
     return { user: envUser || "root", pass: envPass || "root", source: "env" };
   }
-  const credPath = join(homedir(), ".laqrumcode", "surreal-cred.json");
+  const credPath = join(homedir(), ".sould", "surreal-cred.json");
   try {
     const parsed = JSON.parse(readFileSync(credPath, "utf8"));
     if (parsed && typeof parsed.user === "string" && parsed.user && typeof parsed.pass === "string" && parsed.pass) {

@@ -4,7 +4,7 @@
  *
  * Sequence (crash-safe ordering):
  *   1. Generate a strong secret (24 random bytes, base64url).
- *   2. PERSIST it first to ~/.laqrumcode/surreal-admin-cred.json (created
+ *   2. PERSIST it first to ~/.sould/surreal-admin-cred.json (created
  *      0600) — if the process dies between persist and rotate, the file just
  *      holds an unused secret and the run is retried; the reverse order
  *      could rotate and then lose the only copy of the new secret.
@@ -27,7 +27,7 @@ import { randomBytes } from "node:crypto";
 const URL = process.env.SURREAL_URL || "ws://localhost:8000/rpc";
 const OLD_USER = process.env.SURREAL_ADMIN_USER || "root";
 const OLD_PASS = process.env.SURREAL_ADMIN_PASS || "root";
-const ADMIN_CRED_PATH = homedir() + "/.laqrumcode/surreal-admin-cred.json";
+const ADMIN_CRED_PATH = homedir() + "/.sould/surreal-admin-cred.json";
 
 const newPass = randomBytes(24).toString("base64url");
 
@@ -75,7 +75,7 @@ try {
 } finally { await fresh.close(); }
 
 // 4c: the scoped daemon user is unaffected.
-const credPath = homedir() + "/.laqrumcode/surreal-cred.json";
+const credPath = homedir() + "/.sould/surreal-cred.json";
 if (existsSync(credPath)) {
   const c = JSON.parse(readFileSync(credPath, "utf8"));
   const u = new Surreal();

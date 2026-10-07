@@ -19,7 +19,7 @@ import { SurrealStore } from "../src/engine/surreal.js";
 import { seedCognitiveBootstrap } from "../src/engine/cognitive-bootstrap.js";
 
 const SKIP = process.env.SKIP_INTEGRATION === "1";
-const TEST_NS = "laqrum_test";
+const TEST_NS = "sould_test";
 const TEST_DB = `t1mig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 let store: SurrealStore;
 

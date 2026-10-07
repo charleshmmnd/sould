@@ -1,10 +1,10 @@
 /**
- * LaqrumCode MCP client — thin per-Claude-Code-session process.
+ * Sould MCP client — thin per-Claude-Code-session process.
  *
  * Replaces the legacy src/mcp-server.ts as the binary that .mcp.json invokes.
  * Owns only:
  *   - stdio transport with Claude Code (MCP server end)
- *   - JSON-RPC client to laqrumcode-daemon (heavy state lives there)
+ *   - JSON-RPC client to sould-daemon (heavy state lives there)
  *
  * On startup:
  *   1. ensureDaemon() — connects to existing daemon or spawns one
@@ -54,7 +54,7 @@ let ipcInFlight = null;
  *  conversation). Prefer it.
  *
  *  Precedence is deliberate:
- *   - LAQRUMCODE_SESSION_ID first: an explicit pin must always win.
+ *   - SOULD_SESSION_ID first: an explicit pin must always win.
  *     daemon/auto-drain.ts sets it to a fresh UUID specifically to isolate a
  *     spawned drain agent from its parent; inheriting CLAUDE_CODE_SESSION_ID
  *     would undo that.
@@ -66,7 +66,7 @@ let ipcInFlight = null;
  *  subagent still reports its parent conversation, which is the attribution we
  *  want. */
 export function resolveSessionId(env = process.env, pid = process.pid) {
-    return env.LAQRUMCODE_SESSION_ID
+    return env.SOULD_SESSION_ID
         || env.CLAUDE_CODE_SESSION_ID
         || `mcp-client-${pid}`;
 }
@@ -103,7 +103,7 @@ async function connectAndHandshake() {
     const { socketPath, tcpHost, tcpPort, spawned } = await ensureDaemon({
         log: { info: log.info, warn: log.warn, error: log.error },
     });
-    // In TCP mode (Windows / LAQRUMCODE_DAEMON_TRANSPORT=tcp) ensureDaemon returns
+    // In TCP mode (Windows / SOULD_DAEMON_TRANSPORT=tcp) ensureDaemon returns
     // {tcpHost,tcpPort}; pass socketPath:null so IpcClient connects over TCP.
     // Otherwise connect over the Unix socket.
     const where = tcpPort !== undefined ? `TCP ${tcpHost}:${tcpPort}` : socketPath;
@@ -266,7 +266,7 @@ async function getOrConnectIpc() {
  *  a large gem batch takes minutes, and the 30s default timed the CLIENT out
  *  while the daemon kept writing (founder report: "big gem batches fail";
  *  the writes are idempotency-sealed so retries don't duplicate, but the
- *  call still failed user-visibly). Explicit LAQRUMCODE_IPC_TIMEOUT_MS still
+ *  call still failed user-visibly). Explicit SOULD_IPC_TIMEOUT_MS still
  *  governs everything not listed here. */
 const TOOL_TIMEOUT_MS = {
     create_knowledge_gems: 300_000,
@@ -310,12 +310,12 @@ async function handleToolCall(toolName, args) {
                 return {
                     content: [{
                             type: "text",
-                            text: `laqrumcode daemon unavailable after retry: ${retryErr.message}`,
+                            text: `sould daemon unavailable after retry: ${retryErr.message}`,
                         }],
                 };
             }
         }
-        return { content: [{ type: "text", text: `laqrumcode error: ${err.message}` }] };
+        return { content: [{ type: "text", text: `sould error: ${err.message}` }] };
     }
 }
 async function shutdown() {
@@ -329,7 +329,7 @@ async function shutdown() {
     }
 }
 async function main() {
-    const server = new Server({ name: "laqrumcode", version: CLIENT_VERSION }, { capabilities: { tools: {} } });
+    const server = new Server({ name: "sould", version: CLIENT_VERSION }, { capabilities: { tools: {} } });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
         tools: MCP_TOOLS,
     }));
@@ -362,7 +362,7 @@ async function main() {
     // ensure runs in the background after handshake completes.
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    log.info(`[mcp-client] laqrumcode MCP client running on stdio (v${CLIENT_VERSION}, session=${SESSION_ID})`);
+    log.info(`[mcp-client] sould MCP client running on stdio (v${CLIENT_VERSION}, session=${SESSION_ID})`);
     // Eagerly trigger daemon spawn in the background. Required so hook-proxy.cjs
     // can find the daemon's per-PID socket when SessionStart/UserPromptSubmit/
     // Stop hooks fire — those go through hook-proxy directly (NOT through MCP

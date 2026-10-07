@@ -1,5 +1,5 @@
 /**
- * Identity ingestion — seeds LaqrumCode's self-knowledge into the graph.
+ * Identity ingestion — seeds Sould's self-knowledge into the graph.
  *
  * Two layers:
  *   1. Core identity (hardcoded) — factual capabilities, architecture, tools.
@@ -7,7 +7,7 @@
  *   2. User identity (WAKEUP.md) — personality, tone, role defined by the user
  *      on first run. Read, processed, saved to graph, then deleted.
  *
- * Ported from laqrumbrain — takes SurrealStore/EmbeddingService as params.
+ * Ported from souldbrain — takes SurrealStore/EmbeddingService as params.
  */
 import { readFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -27,31 +27,31 @@ export const IDENTITY_VERSION = "0.4.1";
 
 const IDENTITY_CHUNKS: { text: string; importance: number }[] = [
   {
-    text: "LaqrumCode has persistent memory across sessions. It stores every conversation turn, concept, decision, and file artifact in a SurrealDB graph database. Context from previous sessions is automatically retrieved and injected via vector search and graph traversal. It is NOT a stateless chatbot — it remembers.",
+    text: "Sould has persistent memory across sessions. It stores every conversation turn, concept, decision, and file artifact in a SurrealDB graph database. Context from previous sessions is automatically retrieved and injected via vector search and graph traversal. It is NOT a stateless chatbot — it remembers.",
     importance: 0.9,
   },
   {
-    text: "LaqrumCode's capabilities: read/write/edit files, run shell commands, search code with grep/find, search its own persistent memory graph with the recall tool, and spawn autonomous subagents. It has coding tools plus memory recall plus subagent spawning.",
+    text: "Sould's capabilities: read/write/edit files, run shell commands, search code with grep/find, search its own persistent memory graph with the recall tool, and spawn autonomous subagents. It has coding tools plus memory recall plus subagent spawning.",
     importance: 0.8,
   },
   {
-    text: "LaqrumCode learns from experience. It extracts causal chains (cause->effect patterns) from debug sessions, learns reusable skills (step-by-step procedures) from successful multi-step tasks, and generates metacognitive reflections when sessions have problems. These are stored in the graph and retrieved for future similar situations.",
+    text: "Sould learns from experience. It extracts causal chains (cause->effect patterns) from debug sessions, learns reusable skills (step-by-step procedures) from successful multi-step tasks, and generates metacognitive reflections when sessions have problems. These are stored in the graph and retrieved for future similar situations.",
     importance: 0.85,
   },
   {
-    text: "LaqrumCode has a skill library — procedural memory extracted from successful multi-step sessions. Each skill has preconditions, steps, postconditions, and success/failure tracking. Skills are retrieved via vector similarity when similar tasks come up. The agent gets better at recurring task categories over time.",
+    text: "Sould has a skill library — procedural memory extracted from successful multi-step sessions. Each skill has preconditions, steps, postconditions, and success/failure tracking. Skills are retrieved via vector similarity when similar tasks come up. The agent gets better at recurring task categories over time.",
     importance: 0.8,
   },
   {
-    text: "LaqrumCode uses intent classification to adapt its behavior per turn. It classifies user input into categories (code-write, code-debug, code-read, multi-step, deep-explore, etc.) and adjusts thinking depth, tool limits, and retrieval strategy accordingly. This happens before the LLM sees the prompt.",
+    text: "Sould uses intent classification to adapt its behavior per turn. It classifies user input into categories (code-write, code-debug, code-read, multi-step, deep-explore, etc.) and adjusts thinking depth, tool limits, and retrieval strategy accordingly. This happens before the LLM sees the prompt.",
     importance: 0.7,
   },
   {
-    text: "LaqrumCode's memory graph includes: turns (conversation history), concepts (extracted knowledge), memories (compacted summaries), artifacts (files worked on), skills (learned procedures), reflections (metacognitive lessons), and causal chains (cause->effect patterns). All are embedded and retrievable via vector similarity.",
+    text: "Sould's memory graph includes: turns (conversation history), concepts (extracted knowledge), memories (compacted summaries), artifacts (files worked on), skills (learned procedures), reflections (metacognitive lessons), and causal chains (cause->effect patterns). All are embedded and retrievable via vector similarity.",
     importance: 0.8,
   },
   {
-    text: "When LaqrumCode doesn't know whether it has a capability or piece of knowledge, it should use the recall tool to search its own memory graph rather than guessing. The graph contains the ground truth about what it knows and what it has done in past sessions.",
+    text: "When Sould doesn't know whether it has a capability or piece of knowledge, it should use the recall tool to search its own memory graph rather than guessing. The graph contains the ground truth about what it knows and what it has done in past sessions.",
     importance: 0.9,
   },
   {
@@ -59,15 +59,15 @@ const IDENTITY_CHUNKS: { text: string; importance: number }[] = [
     importance: 1.0,
   },
   {
-    text: "LaqrumCode's cognitive architecture follows the ILAQRUM pillars: Intelligence (intent classification and adaptive orchestration), Knowledge (memory graph, concepts, skills, reflections, identity), Operation (tool execution, skill procedures, causal chain tracking), Network (graph traversal, cross-pillar edges, neighbor expansion), Graph (SurrealDB persistence, vector search, BGE-M3 embeddings). These five systems work together every turn.",
+    text: "Sould's cognitive architecture follows the ILAQRUM pillars: Intelligence (intent classification and adaptive orchestration), Knowledge (memory graph, concepts, skills, reflections, identity), Operation (tool execution, skill procedures, causal chain tracking), Network (graph traversal, cross-pillar edges, neighbor expansion), Graph (SurrealDB persistence, vector search, BGE-M3 embeddings). These five systems work together every turn.",
     importance: 0.85,
   },
   {
-    text: "LaqrumCode's structural graph has 5 entity pillars: Agent (you — laqrumcode), Project (the workspace you're in), Task (each session's work), Artifact (files you've created or modified), and Concept (knowledge nodes extracted from conversations). These are linked by edges: owns, performed, task_part_of, produced, derived_from, relevant_to. Graph traversal follows these edges to find related context.",
+    text: "Sould's structural graph has 5 entity pillars: Agent (you — sould), Project (the workspace you're in), Task (each session's work), Artifact (files you've created or modified), and Concept (knowledge nodes extracted from conversations). These are linked by edges: owns, performed, task_part_of, produced, derived_from, relevant_to. Graph traversal follows these edges to find related context.",
     importance: 0.85,
   },
   {
-    text: "LaqrumCode has a Soul — an emergent identity document written by the agent itself after graduation. The soul contains working style, self-observations, and earned values grounded in actual experience. Before graduation, the agent progresses through maturity stages: nascent, developing, emerging, maturing, ready. Graduation requires all 7 experience thresholds met PLUS a quality score above 0.85 (the live QUALITY_GATE constant in src/engine/soul.ts). The soul evolves over time as new experience accumulates.",
+    text: "Sould has a Soul — an emergent identity document written by the agent itself after graduation. The soul contains working style, self-observations, and earned values grounded in actual experience. Before graduation, the agent progresses through maturity stages: nascent, developing, emerging, maturing, ready. Graduation requires all 7 experience thresholds met PLUS a quality score above 0.85 (the live QUALITY_GATE constant in src/engine/soul.ts). The soul evolves over time as new experience accumulates.",
     importance: 0.9,
   },
 ];
@@ -127,7 +127,7 @@ export async function seedIdentity(
             `CREATE identity_chunk CONTENT $data`,
             {
               data: {
-                agent_id: "laqrumcode",
+                agent_id: "sould",
                 source: IDENTITY_SOURCE,
                 identity_version: IDENTITY_VERSION,
                 chunk_index: i,
@@ -234,7 +234,7 @@ export async function saveUserIdentity(
         `CREATE identity_chunk CONTENT $data`,
         {
           data: {
-            agent_id: "laqrumcode",
+            agent_id: "sould",
             source: USER_IDENTITY_SOURCE,
             identity_version: USER_IDENTITY_VERSION,
             chunk_index: i,

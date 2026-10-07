@@ -765,7 +765,7 @@ async function buildWorkPayload(
       return {
         work_id: item.id,
         work_type: "soul_generate",
-        instructions: `You are LaqrumCode, a graph-backed coding agent with persistent memory. Based on YOUR OWN memory graph data below, write your initial Soul document. Be honest, not aspirational. Only claim what the data supports.`,
+        instructions: `You are Sould, a graph-backed coding agent with persistent memory. Based on YOUR OWN memory graph data below, write your initial Soul document. Be honest, not aspirational. Only claim what the data supports.`,
         data: {
           reflections: (reflections as any[]).map(r => `[${r.category}] ${capSoulInput(r.text)}`),
           causal_chains: (causalChains as any[]).map(c => `[${c.chain_type}] ${capSoulInput(c.description)}`),

@@ -2,7 +2,7 @@
  * Soul — the emergent identity document system.
  *
  * Unlike hardcoded identity chunks, the Soul document is written BY the agent
- * based on its own graph data. It lives in SurrealDB as `soul:laqrumbrain` and
+ * based on its own graph data. It lives in SurrealDB as `soul:souldbrain` and
  * evolves over time through experience-grounded revisions.
  *
  * Graduation is a staged process, not a binary gate. There are 8 gates total:
@@ -19,7 +19,7 @@
  * An agent that meets all 7 volume thresholds but has terrible quality scores
  * will NOT graduate — it needs to improve before self-authoring makes sense.
  *
- * Ported from laqrumbrain — takes SurrealStore/EmbeddingService as params.
+ * Ported from souldbrain — takes SurrealStore/EmbeddingService as params.
  */
 import { type SurrealStore } from "./surreal.js";
 export type MaturityStage = "nascent" | "developing" | "emerging" | "maturing" | "ready";
@@ -190,7 +190,7 @@ export interface GuardedSoulWrite {
  * equals what this write produced — any concurrent append skips the trim
  * (retried on a later revision; the audit trail is the only thing at stake).
  *
- * UPDATE on a missing soul:laqrumbrain is a no-op returning [] (probed), so a
+ * UPDATE on a missing soul:souldbrain is a no-op returning [] (probed), so a
  * soul deleted mid-flight surfaces as "conflict", never a resurrection.
  */
 export declare function reviseSoulGuarded(writes: GuardedSoulWrite[], rationale: string, store: SurrealStore, opts?: {

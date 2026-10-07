@@ -4,6 +4,10 @@ All notable changes to LaqrumCode are documented here. The 0.7.x series introduc
 
 ## [Unreleased]
 
+### Changed
+- **Renamed to Sould.** Charles chose the name on 2026-10-07 ("the soul file is the most unique piece of this"); the project is maintained from charleshmmnd/sould from here, with sould.dev as its home. Plugin id `sould`, MCP server `sould` (tool prefix `mcp__plugin_sould_sould__`), marketplace `sould-marketplace`, environment variables `SOULD_*`, data and cache under `~/.sould`, daemon socket `~/.sould-daemon.sock`, managed database user `sould_<uid>`, namespace `sould`, soul record `soul:souldbrain`, binaries and launch scripts `sould-*`, skills `sould-*` and `souldbrain`. The lineage names (LaqrumBrain, LaqrumCode, KongCode) stay in the changelog and in historical comments. Existing graphs move with `scripts/migrate-legacy-graph.mjs` (`LEGACY_BRAND=laqrum`), which copies every table verbatim into the new namespace and rewrites only the brand-keyed identifiers; the move doubles as the store compaction the 7.9 GB value log needed.
+
+
 ## [0.9.1] - 2026-10-07
 
 ### Fixed

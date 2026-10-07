@@ -7,7 +7,7 @@
  *
  * Restores the five jobs that used to live in LaqrumBrain's
  * ContextEngine.bootstrap(), which the OpenClaw framework called on session
- * lifecycle. LaqrumCode has no such framework call, so these had been silently
+ * lifecycle. Sould has no such framework call, so these had been silently
  * not running since the port. See GitHub issue history around 2026-04-21 —
  * and the 2026-06-10 recurrence: on the daemon-split architecture the only
  * wired callers were the legacy monolith and the session-start hook, so with
@@ -58,7 +58,7 @@ export declare function runBootstrapMaintenance(state: GlobalPluginState): void;
  *  it running thereafter. Exported for tests. */
 export declare function runEmbeddingBackfills(state: GlobalPluginState): Promise<void>;
 /** Seed the `skill` table from the repo-committed JSON snapshot at
- *  `.claude-plugin/skills-seed.json`. This is how fresh laqrumcode installs
+ *  `.claude-plugin/skills-seed.json`. This is how fresh sould installs
  *  get the curated skills since the SKILL.md files on disk are 5-line
  *  stubs (v0.7.84 moved the skill bodies into the DB as the founder's
  *  no-md-proliferation directive).

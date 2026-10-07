@@ -1,5 +1,5 @@
 /**
- * Strip laqrumcode structural XML tags from user-supplied text.
+ * Strip sould structural XML tags from user-supplied text.
  *
  * Prevents stored content from breaking out of its injection envelope
  * when retrieved and assembled into the LLM context. Applied at write
@@ -11,11 +11,11 @@ export declare function stripStructuralTags(text: string): string;
  * Strip ONLY the `<system-reminder>` wrapper, leaving every other structural
  * tag in place.
  *
- * For text laqrumcode assembled itself and is about to wrap. The full
+ * For text sould assembled itself and is about to wrap. The full
  * {@link stripStructuralTags} is for *content* — anything sourced from a turn,
  * a memory, a tool result — and running it over a finished envelope deletes
  * the envelope: `<active_directives>`, `<session_directives>` and
- * `<recalled_memory>` are all on its list, so the section tags laqrumcode had
+ * `<recalled_memory>` are all on its list, so the section tags sould had
  * just written were removed on the way out and the model received tier-0 and
  * tier-1 directives as one unlabelled run of bullets.
  *

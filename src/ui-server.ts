@@ -38,7 +38,7 @@ let uiServer: HttpServer | null = null;
 /** dist/ui/ at runtime (this module compiles to dist/ui-server.js). */
 const UI_ASSET_DIR = fileURLToPath(new URL("./ui/", import.meta.url));
 
-const COOKIE = "laqrumcode_ui";
+const COOKIE = "sould_ui";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -69,7 +69,7 @@ export const UI_PORT_BASE = 33000;
  *  cross-user collision (mirrors the managed-surreal port scheme), disjoint from
  *  both the managed-SurrealDB window [18765,28764] AND the daemon IPC window. */
 export function uiPort(): number {
-  const env = Number(process.env.LAQRUMCODE_UI_PORT);
+  const env = Number(process.env.SOULD_UI_PORT);
   if (Number.isFinite(env) && env > 0 && env < 65536) return Math.floor(env);
   const uid = typeof process.getuid === "function" ? process.getuid() : 0;
   return UI_PORT_BASE + (uid % 10000);
@@ -398,7 +398,7 @@ async function querySandbox(state: GlobalPluginState, query: string, limit: numb
 }
 
 // Exported for tests — test/ui-server.test.ts exercises the SQL against a live
-// laqrum_test DB (the layer where the type::record + queryBatch bugs lived).
+// sould_test DB (the layer where the type::record + queryBatch bugs lived).
 export {
   dashboard, listMemories, listConcepts, graphNeighborhood, nodeDetail,
   listDirectives, soulView, listSessions, listRetrievalOutcomes, querySandbox,
@@ -484,7 +484,7 @@ export function uiRequestHandler(state: GlobalPluginState, authToken: string): (
     if (!authed(req, authToken)) {
       if (url.pathname.startsWith("/api/")) { sendJson(res, 401, { error: "unauthorized" }); return; }
       res.writeHead(401, { "content-type": "text/plain" });
-      res.end("Unauthorized — open laqrumcode via `node scripts/open-ui.mjs`."); return;
+      res.end("Unauthorized — open sould via `node scripts/open-ui.mjs`."); return;
     }
     // LAQ-SEC-001: the launcher (authed via Bearer above) mints its one-time
     // browser nonce here. The only non-GET route; everything below stays
@@ -506,10 +506,10 @@ export function uiRequestHandler(state: GlobalPluginState, authToken: string): (
 
 /**
  * Start the loopback UI server. No-ops (logs once) when the frontend bundle is
- * absent, when LAQRUMCODE_UI=0, or when the port is already bound by a sibling.
+ * absent, when SOULD_UI=0, or when the port is already bound by a sibling.
  */
 export async function startUiServer(state: GlobalPluginState, authToken: string): Promise<void> {
-  if (process.env.LAQRUMCODE_UI === "0") return;
+  if (process.env.SOULD_UI === "0") return;
   if (uiServer) return;
   if (!existsSync(join(UI_ASSET_DIR, "index.html"))) {
     log.info("[ui-server] no built UI assets (dist/ui/index.html) — UI disabled; run `npm run build` to enable");

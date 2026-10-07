@@ -1,5 +1,5 @@
 /**
- * JSON-RPC client used by laqrumcode-mcp to talk to laqrumcode-daemon.
+ * JSON-RPC client used by sould-mcp to talk to sould-daemon.
  *
  * Connects to the daemon's Unix socket (linux/mac) or TCP loopback (Windows
  * / explicit override), sends typed RPC requests, and resolves promises with

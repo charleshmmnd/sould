@@ -28,11 +28,11 @@ function makeState(): GlobalPluginState {
 }
 
 describe("K1: sessions Map hard size cap", () => {
-  const original = process.env.LAQRUMCODE_MAX_SESSIONS;
-  beforeEach(() => { process.env.LAQRUMCODE_MAX_SESSIONS = "3"; });
+  const original = process.env.SOULD_MAX_SESSIONS;
+  beforeEach(() => { process.env.SOULD_MAX_SESSIONS = "3"; });
   afterEach(() => {
-    if (original === undefined) delete process.env.LAQRUMCODE_MAX_SESSIONS;
-    else process.env.LAQRUMCODE_MAX_SESSIONS = original;
+    if (original === undefined) delete process.env.SOULD_MAX_SESSIONS;
+    else process.env.SOULD_MAX_SESSIONS = original;
   });
 
   it("never exceeds the cap no matter how many sessions are created", () => {

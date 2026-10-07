@@ -9,7 +9,7 @@
  *
  *   - Literals are read from STDIN, one per line — never argv (world-readable
  *     via /proc) and never env echoes. e.g.:
- *       jq -r .pass ~/.laqrumcode/surreal-cred.json | node scripts/scrub-stored-secrets.mjs
+ *       jq -r .pass ~/.sould/surreal-cred.json | node scripts/scrub-stored-secrets.mjs
  *   - Replacement only — no row is deleted; each match becomes
  *     "[redacted-secret-pattern]" via string::replace with the literal BOUND
  *     (never interpolated).

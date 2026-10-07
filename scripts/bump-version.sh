@@ -148,10 +148,10 @@ sed -i "s/const CLIENT_VERSION = \"[^\"]*\"/const CLIENT_VERSION = \"${VERSION}\
 # --- Surface 6: src/mcp-server.ts McpServer version ----------------------
 # Historically the most-missed surface: earlier script versions skipped it
 # entirely (see CHANGELOG for the release that fixed this).
-sed -i -E "s/(name: \"laqrumcode\", version: \")[^\"]*(\")/\1${VERSION}\2/" "$ROOT/src/mcp-server.ts"
+sed -i -E "s/(name: \"sould\", version: \")[^\"]*(\")/\1${VERSION}\2/" "$ROOT/src/mcp-server.ts"
 
 # DAEMON_VERSION in src/daemon/index.ts is intentionally absent: it reads
-# package.json at runtime (or __LAQRUMCODE_VERSION__ injected at bundle time).
+# package.json at runtime (or __SOULD_VERSION__ injected at bundle time).
 
 # --- README tests badge (optional; slow) ---------------------------------
 if [ "$SKIP_TESTS" = "0" ]; then
@@ -231,7 +231,7 @@ if [ "$OLD_VERSION" != "$VERSION" ]; then
     printf "%s\n" "$LEFTOVER" | sed 's/^/    /'
     echo ""
     echo "  If any of these is a real version surface, add it to this script"
-    echo "  AND to the surface table in the laqrumcode-release skill."
+    echo "  AND to the surface table in the sould-release skill."
     echo "  If it is a historical reference (a comment, a quoted example),"
     echo "  reword it so the sweep stays meaningful."
     exit 1

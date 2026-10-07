@@ -1,12 +1,12 @@
 import { cpus, totalmem } from "node:os";
 export function detectResourceProfile() {
-    const override = process.env.LAQRUMCODE_RESOURCE_TIER;
+    const override = process.env.SOULD_RESOURCE_TIER;
     const totalRamMb = Math.round(totalmem() / (1024 * 1024));
     const cpuCount = cpus().length;
-    const noGpu = process.env.LAQRUMCODE_NO_GPU === "1";
+    const noGpu = process.env.SOULD_NO_GPU === "1";
     const validTiers = ["constrained", "standard", "generous"];
     if (override && !validTiers.includes(override)) {
-        console.warn(`[resource-tier] Invalid LAQRUMCODE_RESOURCE_TIER="${override}", falling back to auto-detect`);
+        console.warn(`[resource-tier] Invalid SOULD_RESOURCE_TIER="${override}", falling back to auto-detect`);
     }
     const tier = override && validTiers.includes(override)
         ? override

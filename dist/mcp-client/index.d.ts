@@ -1,10 +1,10 @@
 /**
- * LaqrumCode MCP client — thin per-Claude-Code-session process.
+ * Sould MCP client — thin per-Claude-Code-session process.
  *
  * Replaces the legacy src/mcp-server.ts as the binary that .mcp.json invokes.
  * Owns only:
  *   - stdio transport with Claude Code (MCP server end)
- *   - JSON-RPC client to laqrumcode-daemon (heavy state lives there)
+ *   - JSON-RPC client to sould-daemon (heavy state lives there)
  *
  * On startup:
  *   1. ensureDaemon() — connects to existing daemon or spawns one
@@ -35,7 +35,7 @@
  *  conversation). Prefer it.
  *
  *  Precedence is deliberate:
- *   - LAQRUMCODE_SESSION_ID first: an explicit pin must always win.
+ *   - SOULD_SESSION_ID first: an explicit pin must always win.
  *     daemon/auto-drain.ts sets it to a fresh UUID specifically to isolate a
  *     spawned drain agent from its parent; inheriting CLAUDE_CODE_SESSION_ID
  *     would undo that.

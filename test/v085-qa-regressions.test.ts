@@ -98,7 +98,7 @@ describe("stripStructuralTags: single pass is defeatable by nesting", () => {
     expect(stripStructuralTags(once)).toBe(once);
   });
 
-  it("stripReminderWrapper still preserves laqrumcode's own section tags", () => {
+  it("stripReminderWrapper still preserves sould's own section tags", () => {
     const block = "<active_directives>\nrule\n</active_directives>";
     expect(stripReminderWrapper(block)).toBe(block);
   });
@@ -112,11 +112,11 @@ describe("resolveSessionId: the two session-id spaces must be one", () => {
       .toBe("uuid-abc");
   });
 
-  it("lets an explicit LAQRUMCODE_SESSION_ID win — auto-drain relies on this", () => {
+  it("lets an explicit SOULD_SESSION_ID win — auto-drain relies on this", () => {
     // daemon/auto-drain.ts sets this to a fresh UUID to isolate a spawned
     // agent from its parent; inheriting CLAUDE_CODE_SESSION_ID would undo it.
     expect(resolveSessionId(
-      { LAQRUMCODE_SESSION_ID: "pinned", CLAUDE_CODE_SESSION_ID: "uuid-abc" } as NodeJS.ProcessEnv, 999,
+      { SOULD_SESSION_ID: "pinned", CLAUDE_CODE_SESSION_ID: "uuid-abc" } as NodeJS.ProcessEnv, 999,
     )).toBe("pinned");
   });
 
@@ -126,7 +126,7 @@ describe("resolveSessionId: the two session-id spaces must be one", () => {
 
   it("ignores an empty-string env var rather than adopting it as an id", () => {
     expect(resolveSessionId(
-      { LAQRUMCODE_SESSION_ID: "", CLAUDE_CODE_SESSION_ID: "" } as NodeJS.ProcessEnv, 7,
+      { SOULD_SESSION_ID: "", CLAUDE_CODE_SESSION_ID: "" } as NodeJS.ProcessEnv, 7,
     )).toBe("mcp-client-7");
   });
 });
@@ -185,7 +185,7 @@ describe("core_memory update: id lookup must survive RecordId objects", () => {
 // ── B2 end-to-end: what the tool writes, the renderer must be able to read ──
 
 const SKIP = process.env.SKIP_INTEGRATION === "1";
-const TEST_NS = "laqrum_test";
+const TEST_NS = "sould_test";
 const TEST_DB = `v085_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 let store: SurrealStore;
 

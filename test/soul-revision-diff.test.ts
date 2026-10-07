@@ -30,7 +30,7 @@ describe("reviseSoulGuarded ledger", () => {
     const calls: { sql: string; bindings: Record<string, unknown> }[] = [];
     const store = {
       isAvailable: () => true,
-      queryFirst: vi.fn(async (sql: string, bindings: Record<string, unknown>) => { calls.push({ sql, bindings }); return [{ id: "soul:laqrumbrain" }]; }),
+      queryFirst: vi.fn(async (sql: string, bindings: Record<string, unknown>) => { calls.push({ sql, bindings }); return [{ id: "soul:souldbrain" }]; }),
       queryExec: vi.fn(async () => {}),
     } as any;
     const snapshot = ["Old lesson one", "Kept lesson"];
@@ -49,7 +49,7 @@ describe("reviseSoulGuarded ledger", () => {
     const calls: { bindings: Record<string, unknown> }[] = [];
     const store = {
       isAvailable: () => true,
-      queryFirst: vi.fn(async (_sql: string, bindings: Record<string, unknown>) => { calls.push({ bindings }); return [{ id: "soul:laqrumbrain" }]; }),
+      queryFirst: vi.fn(async (_sql: string, bindings: Record<string, unknown>) => { calls.push({ bindings }); return [{ id: "soul:souldbrain" }]; }),
       queryExec: vi.fn(async () => {}),
     } as any;
     await reviseSoulGuarded([{ section: "self_observations", value: ["fresh"] }], "test", store);

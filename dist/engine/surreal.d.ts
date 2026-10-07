@@ -151,8 +151,8 @@ export declare class WedgeDetector {
 export declare function isRetryableSurrealError(e: unknown): boolean;
 export declare function patchOrderByFields(sql: string): string;
 /**
- * SurrealDB store — wraps all database operations for the LaqrumCode plugin.
- * Replaces the module-level singleton pattern from standalone LaqrumCode.
+ * SurrealDB store — wraps all database operations for the Sould plugin.
+ * Replaces the module-level singleton pattern from standalone Sould.
  */
 export declare class SurrealStore {
     private db;

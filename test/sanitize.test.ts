@@ -29,12 +29,12 @@ describe("stripStructuralTags", () => {
     expect(stripStructuralTags("<persisted-output>x</persisted-output>")).toBe("x");
   });
 
-  it("strips <laqrumcode_pending_work> tags", () => {
-    expect(stripStructuralTags("<laqrumcode_pending_work>x</laqrumcode_pending_work>")).toBe("x");
+  it("strips <sould_pending_work> tags", () => {
+    expect(stripStructuralTags("<sould_pending_work>x</sould_pending_work>")).toBe("x");
   });
 
-  it("strips <laqrumcode-alert> tags", () => {
-    expect(stripStructuralTags("<laqrumcode-alert>x</laqrumcode-alert>")).toBe("x");
+  it("strips <sould-alert> tags", () => {
+    expect(stripStructuralTags("<sould-alert>x</sould-alert>")).toBe("x");
   });
 
   it("strips <rules_reminder> tags", () => {

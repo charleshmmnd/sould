@@ -100,7 +100,7 @@ export async function assembleContextString(state, session, userPrompt) {
                 // turn text, handoff text and identity/soul fields, none of which are
                 // sanitized at write time. Since v0.8.5 the injection wrapper no longer
                 // strips structural tags from the assembled string (it was deleting
-                // laqrumcode's own section tags), so every contributor to that string
+                // sould's own section tags), so every contributor to that string
                 // has to sanitize its own content.
                 if (wakeup)
                     parts.push(stripStructuralTags(wakeup));

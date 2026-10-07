@@ -198,7 +198,7 @@ describe("reviseSoulGuarded", () => {
   }
 
   it("returns 'applied' when the guarded UPDATE matches", async () => {
-    const store = guardedStore([[{ id: "soul:laqrumbrain" }]]);
+    const store = guardedStore([[{ id: "soul:souldbrain" }]]);
     const res = await reviseSoulGuarded(
       [{ section: "earned_values", value: [{ value: "x", grounded_in: "" }], snapshot: [] }],
       "test", store as any,
@@ -233,7 +233,7 @@ describe("reviseSoulGuarded", () => {
   });
 
   it("rejects non-whitelisted sections", async () => {
-    const store = guardedStore([[{ id: "soul:laqrumbrain" }]]);
+    const store = guardedStore([[{ id: "soul:souldbrain" }]]);
     const res = await reviseSoulGuarded(
       [{ section: "revisions" as any, value: [], snapshot: [] }],
       "test", store as any,
@@ -243,7 +243,7 @@ describe("reviseSoulGuarded", () => {
   });
 
   it("trims revisions past SOUL_REVISIONS_CAP with a length-guarded UPDATE", async () => {
-    const store = guardedStore([[{ id: "soul:laqrumbrain" }]]);
+    const store = guardedStore([[{ id: "soul:souldbrain" }]]);
     const snapshotRevisions = Array.from({ length: SOUL_REVISIONS_CAP }, (_, i) => ({ section: "x", n: i }));
     await reviseSoulGuarded(
       [{ section: "working_style", value: ["a"], snapshot: [] }],
@@ -260,7 +260,7 @@ describe("reviseSoulGuarded", () => {
   });
 
   it("does not trim at or under the cap", async () => {
-    const store = guardedStore([[{ id: "soul:laqrumbrain" }]]);
+    const store = guardedStore([[{ id: "soul:souldbrain" }]]);
     await reviseSoulGuarded(
       [{ section: "working_style", value: ["a"], snapshot: [] }],
       "test", store as any,
@@ -273,8 +273,8 @@ describe("reviseSoulGuarded", () => {
 // ── soul_evolve commit path (integration through handleCommitWorkResults) ───
 
 const FAKE_SOUL = {
-  id: "soul:laqrumbrain",
-  agent_id: "laqrumbrain",
+  id: "soul:souldbrain",
+  agent_id: "souldbrain",
   working_style: ["I verify before acting"],
   emotional_dimensions: [{ dimension: "patience", description: "waits for tests", adopted_at: "2026-01-01" }],
   self_observations: ["I tend to over-plan"],
@@ -290,7 +290,7 @@ const FAKE_SOUL = {
 /** Mock store for the evolve commit flow. `soulUpdateResults` scripts the
  *  guarded soul UPDATE's per-call result ([] = CAS conflict). */
 function mockEvolveStore(item: Record<string, unknown>, opts: { soulUpdateResults?: Array<unknown[]>; hasSoul?: boolean } = {}) {
-  const soulUpdateResults = opts.soulUpdateResults ?? [[{ id: "soul:laqrumbrain" }]];
+  const soulUpdateResults = opts.soulUpdateResults ?? [[{ id: "soul:souldbrain" }]];
   const hasSoulFlag = opts.hasSoul ?? true;
   let soulUpdateCallCount = 0;
   const coreMemory: Array<{ text: string; category: string; tier: number }> = [];
@@ -299,12 +299,12 @@ function mockEvolveStore(item: Record<string, unknown>, opts: { soulUpdateResult
     queryFirst: vi.fn(async (sql: string) => {
       if (sql.includes(`UPDATE ${item.id}`) && sql.includes("RETURN BEFORE")) return [item];
       if (sql.includes('status = "committing"') && sql.includes("committing_token")) return [{ id: item.id }];
-      if (sql.includes("UPDATE soul:laqrumbrain")) {
+      if (sql.includes("UPDATE soul:souldbrain")) {
         const res = soulUpdateResults[Math.min(soulUpdateCallCount++, soulUpdateResults.length - 1)];
         return res;
       }
-      if (sql.includes("SELECT * FROM soul:laqrumbrain")) return hasSoulFlag ? [structuredClone(FAKE_SOUL)] : [];
-      if (sql.includes("FROM soul:laqrumbrain")) return hasSoulFlag ? [{ id: "soul:laqrumbrain" }] : [];
+      if (sql.includes("SELECT * FROM soul:souldbrain")) return hasSoulFlag ? [structuredClone(FAKE_SOUL)] : [];
+      if (sql.includes("FROM soul:souldbrain")) return hasSoulFlag ? [{ id: "soul:souldbrain" }] : [];
       if (sql.includes("FROM core_memory")) return []; // reseed enumeration
       return [];
     }),
@@ -316,7 +316,7 @@ function mockEvolveStore(item: Record<string, unknown>, opts: { soulUpdateResult
     }),
     _coreMemory: coreMemory,
     _soulUpdateCalls: () => store.queryFirst.mock.calls.filter(
-      (c: any[]) => typeof c[0] === "string" && c[0].includes("UPDATE soul:laqrumbrain"),
+      (c: any[]) => typeof c[0] === "string" && c[0].includes("UPDATE soul:souldbrain"),
     ),
   };
   return store;
@@ -370,7 +370,7 @@ describe("soul_evolve commit", () => {
 
   it("value-CAS conflict re-reads and re-merges, then lands (#3)", async () => {
     // First guarded UPDATE returns [] (concurrent writer), second applies.
-    const store = mockEvolveStore(item, { soulUpdateResults: [[], [{ id: "soul:laqrumbrain" }]] });
+    const store = mockEvolveStore(item, { soulUpdateResults: [[], [{ id: "soul:souldbrain" }]] });
     const state = { store, embeddings: { isAvailable: () => false, embed: vi.fn() } } as any;
 
     const res = await pendingWork.handleCommitWorkResults(state, {} as any, {
@@ -452,7 +452,7 @@ describe("soul_generate coercion sweep", () => {
     store2.queryFirst.mockImplementation(async (sql: string) => {
       if (sql.includes(`UPDATE ${item.id}`) && sql.includes("RETURN BEFORE")) return [item];
       if (sql.includes('status = "committing"') && sql.includes("committing_token")) return [{ id: item.id }];
-      if (sql.includes("FROM soul:laqrumbrain")) return []; // no soul before/after
+      if (sql.includes("FROM soul:souldbrain")) return []; // no soul before/after
       if (sql.includes("FROM core_memory")) return [];
       if (sql.includes("count")) return [{ count: 500 }];
       if (sql.includes("retrieval_outcome")) return [{ total: 100, good: 90 }];
@@ -471,7 +471,7 @@ describe("soul_generate coercion sweep", () => {
     });
 
     const createCall = store2.queryExec.mock.calls.find(
-      (c: any[]) => typeof c[0] === "string" && c[0].includes("CREATE soul:laqrumbrain"),
+      (c: any[]) => typeof c[0] === "string" && c[0].includes("CREATE soul:souldbrain"),
     );
     expect(createCall).toBeDefined();
     const data = createCall![1].data;
@@ -517,7 +517,7 @@ describe("soul_generate zombie self-completion (#1)", () => {
           return candidateCalls++ === 0 ? [{ id: "pending_work:pwz" }] : [];
         }
         if (sql.includes("UPDATE pending_work:pwz") && sql.includes('status = "processing"')) return [item];
-        if (sql.includes("FROM soul:laqrumbrain")) return [{ id: "soul:laqrumbrain" }]; // soul EXISTS
+        if (sql.includes("FROM soul:souldbrain")) return [{ id: "soul:souldbrain" }]; // soul EXISTS
         return [];
       }),
       queryExec: vi.fn(async (sql: string, params?: Record<string, unknown>) => {
@@ -543,7 +543,7 @@ describe("countActionablePendingWork soul_generate gate (#1)", () => {
       isAvailable: () => true,
       queryFirst: vi.fn(async (sql: string) => {
         if (sql.includes("GROUP BY work_type")) return [{ work_type: "soul_generate", n: 3 }];
-        if (sql.includes("FROM soul:laqrumbrain")) return [{ id: "soul:laqrumbrain" }]; // soul exists
+        if (sql.includes("FROM soul:souldbrain")) return [{ id: "soul:souldbrain" }]; // soul exists
         return [];
       }),
     };
@@ -563,7 +563,7 @@ describe("soul_evolve fetch payload", () => {
         if (sql.includes("won_chain_ids FROM pending_work")) return [];
         if (sql.includes("SELECT id FROM pending_work")) return [{ id: "pending_work:pw9" }];
         if (sql.includes("UPDATE pending_work:pw9") && sql.includes('status = "processing"')) return [item];
-        if (sql.includes("SELECT * FROM soul:laqrumbrain")) return [structuredClone(FAKE_SOUL)];
+        if (sql.includes("SELECT * FROM soul:souldbrain")) return [structuredClone(FAKE_SOUL)];
         if (sql.includes("FROM reflection")) return [{ text: reflectionText }];
         return [];
       }),

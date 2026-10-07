@@ -3,12 +3,12 @@
  * migrate-claude-auto-memory.mjs
  *
  * Migrates Claude Code's file-based "auto memory" — the .md files at
- * ~/.claude/projects/<project>/memory/ — into laqrumcode as knowledge gems,
+ * ~/.claude/projects/<project>/memory/ — into sould as knowledge gems,
  * then deletes the originals and replaces MEMORY.md with a pointer.
  *
  * Why: Claude Code ships an auto-memory system that writes per-project .md
- * files. With laqrumcode installed, that fragments knowledge across two stores.
- * This script ingests existing fragments into the laqrumcode graph and
+ * files. With sould installed, that fragments knowledge across two stores.
+ * This script ingests existing fragments into the sould graph and
  * deprecates the file-based copy.
  *
  * Usage:
@@ -20,11 +20,11 @@
  *
  * Options:
  *   --dry-run       print what would happen, do not write or move
- *   --keep          ingest into laqrumcode but leave originals untouched
+ *   --keep          ingest into sould but leave originals untouched
  *                   (no archive, no MEMORY.md rewrite)
  *   --delete        DESTRUCTIVE: delete originals after ingest (opt-in).
  *                   Default behavior archives originals to
- *                   <dir>/.laqrumcode-archive/<timestamp>/ instead.
+ *                   <dir>/.sould-archive/<timestamp>/ instead.
  *   --batch <N>     gems per create_knowledge_gems call (default: 10;
  *                   30s daemon RPC timeout caps practical batch sizes)
  *
@@ -38,10 +38,10 @@
  *   # see what would happen without writing
  *   node scripts/migrate-claude-auto-memory.mjs --dry-run
  *
- *   # destructive (only after verifying laqrumcode ingest worked)
+ *   # destructive (only after verifying sould ingest worked)
  *   node scripts/migrate-claude-auto-memory.mjs --delete
  *
- * Requires: laqrumcode daemon running on ~/.laqrumcode-daemon.sock
+ * Requires: sould daemon running on ~/.sould-daemon.sock
  */
 
 import { readFile, readdir, stat, writeFile, unlink, mkdir, rename } from "node:fs/promises";
@@ -51,7 +51,7 @@ import { join, basename } from "node:path";
 import { homedir } from "node:os";
 
 const HOME = homedir();
-const DAEMON_SOCKET = join(HOME, ".laqrumcode-daemon.sock");
+const DAEMON_SOCKET = join(HOME, ".sould-daemon.sock");
 const PROJECTS_ROOT = join(HOME, ".claude", "projects");
 
 // ── Args ────────────────────────────────────────────────────────────────────
@@ -197,7 +197,7 @@ async function migrateDirectory(dir) {
     } catch { /* count by batch length as fallback */ totalIngested += batch.length; }
   }
 
-  // Default: archive originals to <dir>/.laqrumcode-archive/<timestamp>/.
+  // Default: archive originals to <dir>/.sould-archive/<timestamp>/.
   // --keep: leave them in place. --delete: destroy them (opt-in).
   let movedCount = 0;
   let deletedCount = 0;
@@ -209,7 +209,7 @@ async function migrateDirectory(dir) {
       }
     } else {
       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      archiveDir = join(dir, ".laqrumcode-archive", ts);
+      archiveDir = join(dir, ".sould-archive", ts);
       try { await mkdir(archiveDir, { recursive: true }); } catch { /* skip */ }
       for (const file of mdFiles) {
         try {
@@ -221,13 +221,13 @@ async function migrateDirectory(dir) {
   }
 
   const pointerPath = join(dir, "MEMORY.md");
-  const pointer = `# MEMORY POINTS AT LAQRUMCODE
+  const pointer = `# MEMORY POINTS AT SOULD
 
-Migrated to laqrumcode graph on ${new Date().toISOString().slice(0, 10)} via scripts/migrate-claude-auto-memory.mjs.
+Migrated to sould graph on ${new Date().toISOString().slice(0, 10)} via scripts/migrate-claude-auto-memory.mjs.
 
 ${totalIngested} memories ingested as concepts. Source tag: \`${source}\`.
 ${archiveDir ? `\nOriginals archived to: \`${archiveDir.replace(HOME, "~")}\` (reversible).\n` : ""}
-Use the laqrumcode MCP tools (\`recall\`, \`record_finding\`, \`core_memory\`, \`introspect\`) for memory operations. Do not write new files here.
+Use the sould MCP tools (\`recall\`, \`record_finding\`, \`core_memory\`, \`introspect\`) for memory operations. Do not write new files here.
 `;
   if (!KEEP) {
     try {

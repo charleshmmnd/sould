@@ -1,10 +1,10 @@
 ---
 description: Manage always-loaded memory directives
 argument-hint: "[list|add|update|deactivate] [args]"
-allowed-tools: ["mcp__plugin_laqrumcode_laqrumcode__core_memory", "AskUserQuestion"]
+allowed-tools: ["mcp__plugin_sould_sould__core_memory", "AskUserQuestion"]
 ---
 
-Manage LaqrumCode core memory directives — persistent entries loaded into every turn.
+Manage Sould core memory directives — persistent entries loaded into every turn.
 
 Parse $ARGUMENTS for the action:
 - `list` (default) — show all core memory entries with tier, category, and priority

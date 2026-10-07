@@ -1,5 +1,5 @@
 /**
- * Regression: a fresh laqrumcode install must be able to provision its graph.
+ * Regression: a fresh sould install must be able to provision its graph.
  *
  * SurrealDB 3.1.x (the 2026-06-12 engine cutover) stopped lazily creating a
  * namespace/database on first write OR DDL. SurrealStore.connect() only SELECTS
@@ -25,7 +25,7 @@ const URL = process.env.SURREAL_URL ?? "ws://127.0.0.1:8000/rpc";
 // Phase 3: the live instance may be HARDENED (root rotated away). Resolve
 // like production: env verbatim, else this machine's managed cred file
 // (root-level EDITOR — DEFINE/REMOVE NAMESPACE allowed), else legacy root.
-const FILE_CRED = readManagedCred(join(homedir(), ".laqrumcode", "cache"));
+const FILE_CRED = readManagedCred(join(homedir(), ".sould", "cache"));
 const USER = process.env.SURREAL_USER ?? FILE_CRED?.user ?? "root";
 const PASS = process.env.SURREAL_PASS ?? FILE_CRED?.pass ?? "root";
 const HTTP = URL.replace(/^ws/, "http").replace(/\/rpc$/, "");

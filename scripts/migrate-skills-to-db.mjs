@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * One-shot migration: ingest every SKILL.md under /skills/ into the
- * laqrumcode `skill` table. Founder directive (2026-05-15): no more .md
+ * sould `skill` table. Founder directive (2026-05-15): no more .md
  * proliferation. Skill bodies belong in the vector-indexed DB.
  *
  * Approach: direct SurrealDB write with body in the SCHEMALESS skill
@@ -18,10 +18,10 @@
  *   SURREAL_PASS  — default root
  *   SURREAL_NS    — default laqrum
  *   SURREAL_DB    — default memory
- *   LAQRUMCODE_SKILLS_DIR — default /home/zero/voidorigin/laqrumcode/skills
+ *   SOULD_SKILLS_DIR — default /home/zero/voidorigin/sould/skills
  */
 
-import { Surreal } from "/home/zero/voidorigin/laqrumcode/node_modules/surrealdb/dist/surrealdb.mjs";
+import { Surreal } from "/home/zero/voidorigin/sould/node_modules/surrealdb/dist/surrealdb.mjs";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -30,7 +30,7 @@ import { resolveScriptCred } from "./surreal-cred.mjs";
 const { user: USER, pass: PASS } = resolveScriptCred();
 const NS = process.env.SURREAL_NS || "laqrum";
 const DB = process.env.SURREAL_DB || "memory";
-const SKILLS_DIR = process.env.LAQRUMCODE_SKILLS_DIR || "/home/zero/voidorigin/laqrumcode/skills";
+const SKILLS_DIR = process.env.SOULD_SKILLS_DIR || "/home/zero/voidorigin/sould/skills";
 
 function parseFrontmatter(content) {
   const m = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);

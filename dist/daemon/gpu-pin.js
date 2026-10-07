@@ -1,9 +1,9 @@
 /**
- * Optional GPU/CPU selection for the laqrumcode daemon's node-llama-cpp backend.
+ * Optional GPU/CPU selection for the sould daemon's node-llama-cpp backend.
  *
  * node-llama-cpp's `getLlama({ gpu })` selects the BACKEND (cuda/vulkan/metal),
  * never a device, so on a multi-GPU CUDA box it grabs ALL GPUs by default. This
- * lets an operator pin ONLY the laqrumcode daemon to specific GPU(s) — or force it
+ * lets an operator pin ONLY the sould daemon to specific GPU(s) — or force it
  * onto CPU entirely — without affecting other CUDA processes.
  *
  * Strictly OPT-IN: with nothing configured, `applyGpuPin` is a no-op and the
@@ -12,29 +12,29 @@
  *
  * One knob (env or file), resolved in this order:
  *   1. CUDA_VISIBLE_DEVICES already set → leave it (operator pinned explicitly).
- *   2. LAQRUMCODE_NO_GPU=1 already set     → already CPU-only; leave it.
- *   3. LAQRUMCODE_CUDA_VISIBLE_DEVICES env → daemon-scoped knob.
- *   4. ~/.laqrumcode/cuda-visible-devices  → one line; lets a running daemon be
+ *   2. SOULD_NO_GPU=1 already set     → already CPU-only; leave it.
+ *   3. SOULD_CUDA_VISIBLE_DEVICES env → daemon-scoped knob.
+ *   4. ~/.sould/cuda-visible-devices  → one line; lets a running daemon be
  *      (re)pinned without changing how the mcp-client launched it.
  *
  * The value is either:
  *   - a DEVICE pin (GPU UUID — preferred — or a numeric index list) → sets
  *     CUDA_VISIBLE_DEVICES + defaults CUDA_DEVICE_ORDER=PCI_BUS_ID; OR
  *   - a CPU sentinel ('cpu' / 'none' / 'off' / 'false' / '-1') → sets
- *     LAQRUMCODE_NO_GPU=1 so resource-tier picks gpu:false → genuine CPU-only
+ *     SOULD_NO_GPU=1 so resource-tier picks gpu:false → genuine CPU-only
  *     (NOT a CUDA-hide, which can fall through to Vulkan on the same NVIDIA GPU).
  *
  * MUST be called at daemon module-load, BEFORE detectResourceProfile() (which
- * reads LAQRUMCODE_NO_GPU) and before getSharedLlama() inits CUDA.
+ * reads SOULD_NO_GPU) and before getSharedLlama() inits CUDA.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 /** Values (case-insensitive) that mean "force CPU-only". */
 const CPU_SENTINELS = new Set(["cpu", "none", "off", "false", "-1"]);
-/** Path to the optional file knob (default: ~/.laqrumcode/cuda-visible-devices). */
+/** Path to the optional file knob (default: ~/.sould/cuda-visible-devices). */
 export function gpuPinFilePath(home = homedir()) {
-    return join(home, ".laqrumcode", "cuda-visible-devices");
+    return join(home, ".sould", "cuda-visible-devices");
 }
 function classify(raw) {
     const v = raw.trim();
@@ -50,12 +50,12 @@ export function resolveGpuPin(env = process.env, home = homedir()) {
     if (env.CUDA_VISIBLE_DEVICES) {
         return { applied: false, mode: "gpu", value: env.CUDA_VISIBLE_DEVICES, source: "env:CUDA_VISIBLE_DEVICES" };
     }
-    if (env.LAQRUMCODE_NO_GPU === "1") {
-        return { applied: false, mode: "cpu", source: "env:LAQRUMCODE_NO_GPU" };
+    if (env.SOULD_NO_GPU === "1") {
+        return { applied: false, mode: "cpu", source: "env:SOULD_NO_GPU" };
     }
-    const fromEnv = env.LAQRUMCODE_CUDA_VISIBLE_DEVICES?.trim();
+    const fromEnv = env.SOULD_CUDA_VISIBLE_DEVICES?.trim();
     if (fromEnv)
-        return { applied: false, ...classify(fromEnv), source: "env:LAQRUMCODE_CUDA_VISIBLE_DEVICES" };
+        return { applied: false, ...classify(fromEnv), source: "env:SOULD_CUDA_VISIBLE_DEVICES" };
     try {
         const f = gpuPinFilePath(home);
         if (existsSync(f)) {
@@ -70,16 +70,16 @@ export function resolveGpuPin(env = process.env, home = homedir()) {
 /**
  * Apply the resolved selection to `env` (default process.env). No-op when
  * nothing is configured, or when the operator already set CUDA_VISIBLE_DEVICES /
- * LAQRUMCODE_NO_GPU. Returns what it did, for logging.
+ * SOULD_NO_GPU. Returns what it did, for logging.
  */
 export function applyGpuPin(env = process.env, home = homedir()) {
     const r = resolveGpuPin(env, home);
     // Operator already pinned via a first-class env var → leave it untouched.
-    if (r.source === "env:CUDA_VISIBLE_DEVICES" || r.source === "env:LAQRUMCODE_NO_GPU") {
+    if (r.source === "env:CUDA_VISIBLE_DEVICES" || r.source === "env:SOULD_NO_GPU") {
         return { applied: false, mode: r.mode };
     }
     if (r.mode === "cpu") {
-        env.LAQRUMCODE_NO_GPU = "1";
+        env.SOULD_NO_GPU = "1";
         return { applied: true, mode: "cpu", source: r.source };
     }
     if (r.mode === "gpu" && r.value) {

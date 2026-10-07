@@ -97,7 +97,7 @@ describe("handleUserPromptSubmit — payload.prompt contract", () => {
     expect(session.lastUserText).toBe("");
   });
 
-  // 0.7.44: bypass sigil. Prefix `*` or `/raw` skips laqrumcode injection
+  // 0.7.44: bypass sigil. Prefix `*` or `/raw` skips sould injection
   // for that turn. Turn ingestion still fires (lastUserText populated).
   it("bypass sigil '* ' returns empty additionalContext but still ingests the turn", async () => {
     const state = makeState(session);
@@ -134,7 +134,7 @@ describe("handleUserPromptSubmit — payload.prompt contract", () => {
   });
 });
 
-describe("wrapLaqrumcodeContext — Anthropic-aligned wording (v0.7.44)", () => {
+describe("wrapSouldContext — Anthropic-aligned wording (v0.7.44)", () => {
   // The wrapper is internal but its output reaches the model; we sanity-
   // check that the documented anti-patterns ("MUST", "authoritative",
   // "CRITICAL") aren't present in the legend that wraps every injection.

@@ -237,7 +237,7 @@ function assertValidEdge(edge: string): void {
  *  default (60s — only genuine zombies blow it, not slow CPU-tier queries);
  *  env-overridable for constrained machines. Clamped to [1s, 10min]. */
 export const QUERY_DEADLINE_MS = (() => {
-  const n = Number(process.env.LAQRUMCODE_DB_QUERY_TIMEOUT_MS);
+  const n = Number(process.env.SOULD_DB_QUERY_TIMEOUT_MS);
   return Number.isFinite(n) && n > 0 ? Math.min(Math.max(Math.round(n), 1_000), 600_000) : 60_000;
 })();
 
@@ -278,7 +278,7 @@ export const WEDGE_DEFAULTS = {
   minHeals: 3,
   /** Env-overridable floor, clamped [30s, 1h]. */
   minStreakMs: (() => {
-    const n = Number(process.env.LAQRUMCODE_WEDGE_STREAK_MS);
+    const n = Number(process.env.SOULD_WEDGE_STREAK_MS);
     return Number.isFinite(n) && n > 0 ? Math.min(Math.max(Math.round(n), 30_000), 3_600_000) : 180_000;
   })(),
 } as const;
@@ -470,8 +470,8 @@ export function patchOrderByFields(sql: string): string {
 }
 
 /**
- * SurrealDB store — wraps all database operations for the LaqrumCode plugin.
- * Replaces the module-level singleton pattern from standalone LaqrumCode.
+ * SurrealDB store — wraps all database operations for the Sould plugin.
+ * Replaces the module-level singleton pattern from standalone Sould.
  */
 export class SurrealStore {
   private db: Surreal;
@@ -812,8 +812,8 @@ export class SurrealStore {
       `fresh healthy-looking connection whose queries still never settle, so the fault is ` +
       `process-level state a connection rebuild cannot reach (2026-08-02 incident class). ` +
       `Escalating to process replacement.`;
-    if (process.env.LAQRUMCODE_WEDGE_EXIT_DISABLED === "1") {
-      log.error(`[surreal] ${info} — exit suppressed (LAQRUMCODE_WEDGE_EXIT_DISABLED=1)`);
+    if (process.env.SOULD_WEDGE_EXIT_DISABLED === "1") {
+      log.error(`[surreal] ${info} — exit suppressed (SOULD_WEDGE_EXIT_DISABLED=1)`);
       return;
     }
     if (this.onIrrecoverableWedge) {

@@ -2,7 +2,7 @@
  * Soul — the emergent identity document system.
  *
  * Unlike hardcoded identity chunks, the Soul document is written BY the agent
- * based on its own graph data. It lives in SurrealDB as `soul:laqrumbrain` and
+ * based on its own graph data. It lives in SurrealDB as `soul:souldbrain` and
  * evolves over time through experience-grounded revisions.
  *
  * Graduation is a staged process, not a binary gate. There are 8 gates total:
@@ -19,7 +19,7 @@
  * An agent that meets all 7 volume thresholds but has terrible quality scores
  * will NOT graduate — it needs to improve before self-authoring makes sense.
  *
- * Ported from laqrumbrain — takes SurrealStore/EmbeddingService as params.
+ * Ported from souldbrain — takes SurrealStore/EmbeddingService as params.
  */
 import { assertRecordId } from "./surreal.js";
 import { swallow } from "./errors.js";
@@ -352,7 +352,7 @@ export async function hasSoul(store) {
     if (!store.isAvailable())
         return false;
     try {
-        const rows = await store.queryFirst(`SELECT id FROM soul:laqrumbrain`);
+        const rows = await store.queryFirst(`SELECT id FROM soul:souldbrain`);
         return rows.length > 0;
     }
     catch {
@@ -363,7 +363,7 @@ export async function getSoul(store) {
     if (!store.isAvailable())
         return null;
     try {
-        const rows = await store.queryFirst(`SELECT * FROM soul:laqrumbrain`);
+        const rows = await store.queryFirst(`SELECT * FROM soul:souldbrain`);
         return rows[0] ?? null;
     }
     catch {
@@ -381,16 +381,16 @@ export async function createSoul(doc, store) {
     // inner-object timestamp stays as a string because revisions is
     // `array<object>` (unconstrained inner types), not a datetime field.
     const now = new Date().toISOString();
-    // K42: the hasSoul()→CREATE gap is a TOCTOU window. soul:laqrumbrain is a
+    // K42: the hasSoul()→CREATE gap is a TOCTOU window. soul:souldbrain is a
     // FIXED record id, so a concurrent caller (two session-end pipelines, or a
     // retry) that slips between the check and the CREATE causes the second
-    // CREATE to throw "Database record `soul:laqrumbrain` already exists". Treat
+    // CREATE to throw "Database record `soul:souldbrain` already exists". Treat
     // that as idempotent presence ("exists"), never a throw. Re-check hasSoul
     // after catch so a genuine write failure still reports "failed".
     try {
-        await store.queryExec(`CREATE soul:laqrumbrain CONTENT $data`, {
+        await store.queryExec(`CREATE soul:souldbrain CONTENT $data`, {
             data: {
-                agent_id: "laqrumbrain",
+                agent_id: "souldbrain",
                 ...doc,
                 revisions: [{
                         timestamp: now,
@@ -466,7 +466,7 @@ export function diffSoulSection(before, after) {
  * equals what this write produced — any concurrent append skips the trim
  * (retried on a later revision; the audit trail is the only thing at stake).
  *
- * UPDATE on a missing soul:laqrumbrain is a no-op returning [] (probed), so a
+ * UPDATE on a missing soul:souldbrain is a no-op returning [] (probed), so a
  * soul deleted mid-flight surfaces as "conflict", never a resurrection.
  */
 export async function reviseSoulGuarded(writes, rationale, store, opts = {}) {
@@ -498,7 +498,7 @@ export async function reviseSoulGuarded(writes, rationale, store, opts = {}) {
     bindings.revs = revs;
     const where = guards.length > 0 ? ` WHERE ${guards.join(" AND ")}` : "";
     try {
-        const rows = await store.queryFirst(`UPDATE soul:laqrumbrain SET ${sets.join(", ")}, updated_at = time::now(), revisions += $revs${where} RETURN AFTER`, bindings);
+        const rows = await store.queryFirst(`UPDATE soul:souldbrain SET ${sets.join(", ")}, updated_at = time::now(), revisions += $revs${where} RETURN AFTER`, bindings);
         if (rows.length === 0)
             return "conflict";
     }
@@ -512,7 +512,7 @@ export async function reviseSoulGuarded(writes, rationale, store, opts = {}) {
         const expectedLen = snapRevs.length + revs.length;
         if (expectedLen > SOUL_REVISIONS_CAP) {
             const trimmed = [...snapRevs, ...revs].slice(-SOUL_REVISIONS_CAP);
-            await store.queryExec(`UPDATE soul:laqrumbrain SET revisions = $trimmed WHERE array::len(revisions) = $len`, { trimmed, len: expectedLen }).catch(e => swallow.warn("soul:revisionsTrim", e));
+            await store.queryExec(`UPDATE soul:souldbrain SET revisions = $trimmed WHERE array::len(revisions) = $len`, { trimmed, len: expectedLen }).catch(e => swallow.warn("soul:revisionsTrim", e));
         }
     }
     return "applied";

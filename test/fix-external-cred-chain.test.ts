@@ -5,7 +5,7 @@
  * probed and connected with the configured creds, which collapse to the
  * legacy root:root DEFAULT when nothing is configured. Hardening the
  * instance (rotating root) then made discovery's auth fail, which is
- * indistinguishable from "not a laqrumcode DB" — and a failed discovery
+ * indistinguishable from "not a sould DB" — and a failed discovery
  * falls through to a FRESH managed spawn: split-brain.
  *
  * The chain: explicit config verbatim; otherwise the managed per-user cred
@@ -21,7 +21,7 @@ import { join } from "node:path";
 import {
   buildExternalCredChain,
   readManagedCred,
-  findExistingLaqrumcodeSurreal,
+  findExistingSouldSurreal,
 } from "../src/engine/bootstrap.js";
 import { parsePluginConfig } from "../src/engine/config.js";
 
@@ -108,7 +108,7 @@ describe("parsePluginConfig credsExplicit", () => {
   });
 });
 
-describe("findExistingLaqrumcodeSurreal credential chain", () => {
+describe("findExistingSouldSurreal credential chain", () => {
   const ourUid = typeof process.getuid === "function" ? process.getuid()! : 0;
 
   /** fetch stub: health OK only on port 8000; /sql fingerprints succeed only
@@ -148,7 +148,7 @@ describe("findExistingLaqrumcodeSurreal credential chain", () => {
         { user: "laqrum_1000", pass: "filecred" },
         { user: "root", pass: "root" },
       ];
-      const found = await findExistingLaqrumcodeSurreal(
+      const found = await findExistingSouldSurreal(
         cacheDir, 19999, "root", "root",
         () => ourUid, // owner guard: it's our instance
         chain,
@@ -170,7 +170,7 @@ describe("findExistingLaqrumcodeSurreal credential chain", () => {
         { user: "laqrum_1000", pass: "filecred" },
         { user: "root", pass: "root" },
       ];
-      const found = await findExistingLaqrumcodeSurreal(
+      const found = await findExistingSouldSurreal(
         cacheDir, 19999, "root", "root",
         () => ourUid,
         chain,
@@ -186,7 +186,7 @@ describe("findExistingLaqrumcodeSurreal credential chain", () => {
     const { root, cacheDir } = tmpCacheDir();
     const attempts = stubFetch("root", "root");
     try {
-      const found = await findExistingLaqrumcodeSurreal(
+      const found = await findExistingSouldSurreal(
         cacheDir, 19999, "root", "root",
         () => ourUid,
       );
@@ -200,7 +200,7 @@ describe("findExistingLaqrumcodeSurreal credential chain", () => {
     const { root, cacheDir } = tmpCacheDir();
     stubFetch("someone", "else"); // nothing in the chain matches
     try {
-      const found = await findExistingLaqrumcodeSurreal(
+      const found = await findExistingSouldSurreal(
         cacheDir, 19999, "root", "root",
         () => ourUid,
         [{ user: "laqrum_1000", pass: "filecred" }, { user: "root", pass: "root" }],

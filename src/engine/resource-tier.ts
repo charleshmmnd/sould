@@ -13,14 +13,14 @@ export interface ResourceProfile {
 }
 
 export function detectResourceProfile(): ResourceProfile {
-  const override = process.env.LAQRUMCODE_RESOURCE_TIER as ResourceTier | undefined;
+  const override = process.env.SOULD_RESOURCE_TIER as ResourceTier | undefined;
   const totalRamMb = Math.round(totalmem() / (1024 * 1024));
   const cpuCount = cpus().length;
-  const noGpu = process.env.LAQRUMCODE_NO_GPU === "1";
+  const noGpu = process.env.SOULD_NO_GPU === "1";
 
   const validTiers = ["constrained", "standard", "generous"];
   if (override && !validTiers.includes(override)) {
-    console.warn(`[resource-tier] Invalid LAQRUMCODE_RESOURCE_TIER="${override}", falling back to auto-detect`);
+    console.warn(`[resource-tier] Invalid SOULD_RESOURCE_TIER="${override}", falling back to auto-detect`);
   }
   const tier: ResourceTier =
     override && validTiers.includes(override)

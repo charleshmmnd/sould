@@ -35,7 +35,7 @@ low-activity agent with clean stats cannot graduate prematurely.
 
 ## Soul Document
 
-After graduation, the soul is a singleton record (`soul:laqrumbrain`) containing:
+After graduation, the soul is a singleton record (`soul:souldbrain`) containing:
 - `working_style[]` — How the agent approaches problems (max 20)
 - `emotional_dimensions[]` — `{dimension, description, adopted_at}` (max 10)
 - `self_observations[]` — What it noticed about itself (max 20)

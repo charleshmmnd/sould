@@ -1,5 +1,5 @@
 /**
- * Strip laqrumcode structural XML tags from user-supplied text.
+ * Strip sould structural XML tags from user-supplied text.
  *
  * Prevents stored content from breaking out of its injection envelope
  * when retrieved and assembled into the LLM context. Applied at write
@@ -12,8 +12,8 @@ const STRUCTURAL_TAGS = [
     "active_directives",
     "session_directives",
     "reflection_context",
-    "laqrumcode_pending_work",
-    "laqrumcode-alert",
+    "sould_pending_work",
+    "sould-alert",
     "rules_reminder",
     "persisted-output",
     "user-prompt-submit-hook",
@@ -53,7 +53,7 @@ export function stripStructuralTags(text) {
     //   "<active_dir<active_directives>ectives>"  --1 pass-->  "<active_directives>"
     // which then renders to the model as a genuine directive block. This used to
     // be masked by a second, whole-string strip at injection time; that pass was
-    // removed in v0.8.5 (it was deleting laqrumcode's own section tags), so the
+    // removed in v0.8.5 (it was deleting sould's own section tags), so the
     // content-side strip has to be idempotent on its own.
     return stripToFixpoint(text, TAG_RE).replace(/\n{3,}/g, "\n\n");
 }
@@ -62,11 +62,11 @@ const REMINDER_RE = /<\/?system-reminder\b[^>]*>/gi;
  * Strip ONLY the `<system-reminder>` wrapper, leaving every other structural
  * tag in place.
  *
- * For text laqrumcode assembled itself and is about to wrap. The full
+ * For text sould assembled itself and is about to wrap. The full
  * {@link stripStructuralTags} is for *content* — anything sourced from a turn,
  * a memory, a tool result — and running it over a finished envelope deletes
  * the envelope: `<active_directives>`, `<session_directives>` and
- * `<recalled_memory>` are all on its list, so the section tags laqrumcode had
+ * `<recalled_memory>` are all on its list, so the section tags sould had
  * just written were removed on the way out and the model received tier-0 and
  * tier-1 directives as one unlabelled run of bullets.
  *

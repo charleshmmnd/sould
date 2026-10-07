@@ -1,7 +1,7 @@
 /**
- * laqrumcode-daemon entry point.
+ * sould-daemon entry point.
  *
- * Long-lived background process spawned by the first laqrumcode-mcp client
+ * Long-lived background process spawned by the first sould-mcp client
  * that doesn't find an existing daemon. Owns SurrealStore, EmbeddingService,
  * ACAN weights, hook event queue, and all tool/hook handlers. Outlives any
  * individual Claude Code session — plugin updates restart only the thin
@@ -85,7 +85,7 @@ import { registerRetrievalQualityCleanup } from "../engine/retrieval-quality.js"
  *  runtime (dev), or injected by esbuild --define at bundle time (SEA). */
 const DAEMON_VERSION: string = (() => {
   // @ts-expect-error — replaced by esbuild --define at bundle time
-  try { if (typeof __LAQRUMCODE_VERSION__ === "string") return __LAQRUMCODE_VERSION__; } catch {}
+  try { if (typeof __SOULD_VERSION__ === "string") return __SOULD_VERSION__; } catch {}
   try {
     const pkgPath = join(resolvePluginDir(), "package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
@@ -95,7 +95,7 @@ const DAEMON_VERSION: string = (() => {
 })();
 
 /** Lex-compare dotted versions ("0.7.5" vs "0.7.22"). Returns negative/0/positive
- *  the way Array.sort expects. Skips a full semver dep — laqrumcode's versions
+ *  the way Array.sort expects. Skips a full semver dep — sould's versions
  *  are always plain MAJOR.MINOR.PATCH, no prereleases on the daemon channel. */
 function compareSemver(a: string, b: string): number {
   const pa = a.split(".").map((s) => Number(s) || 0);
@@ -152,9 +152,9 @@ let wedgeExitHandler: (reason: string) => void = (reason) => {
 const SESSION_REAP_INTERVAL_MS = 10 * 60_000;
 
 // GPU/CPU selection — resolved at module load, BEFORE detectResourceProfile()
-// (which reads LAQRUMCODE_NO_GPU) and before any CUDA init. Opt-in, no-op by
+// (which reads SOULD_NO_GPU) and before any CUDA init. Opt-in, no-op by
 // default. A device value pins CUDA_VISIBLE_DEVICES; a CPU sentinel
-// ('cpu'/'none'/'off') sets LAQRUMCODE_NO_GPU=1 → gpu:false. See gpu-pin.ts.
+// ('cpu'/'none'/'off') sets SOULD_NO_GPU=1 → gpu:false. See gpu-pin.ts.
 const gpuPin = applyGpuPin();
 
 const resourceProfile = detectResourceProfile();
@@ -167,7 +167,7 @@ function setBootstrapPhase(p: BootstrapPhase, err?: Error): void {
 }
 
 function pruneStalePluginCache(): void {
-  const cacheBase = join(homedir(), ".claude", "plugins", "cache", "laqrumcode-marketplace", "laqrumcode");
+  const cacheBase = join(homedir(), ".claude", "plugins", "cache", "sould-marketplace", "sould");
   if (!existsSync(cacheBase)) return;
   try {
     const entries = readdirSync(cacheBase, { withFileTypes: true });
@@ -197,7 +197,7 @@ function pruneStalePluginCache(): void {
  *  did. The user-facing surfacing happens through MetaHandshakeResponse's
  *  bootstrapPhase + bootstrapError fields. */
 async function initializeStack(getActiveClientCount?: () => number): Promise<void> {
-  log.info("[daemon] initializing laqrumcode stack...");
+  log.info("[daemon] initializing sould stack...");
   setBootstrapPhase("starting");
 
   const config = parsePluginConfig();
@@ -210,13 +210,13 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
   if (config.surreal.user === "root" && config.surreal.pass === "root" && !config.surreal.credsExplicit) {
     log.warn(
       "[daemon] no explicit SurrealDB credentials configured — bootstrap will " +
-      "prefer the managed cred file (~/.laqrumcode/surreal-cred.json) and fall " +
+      "prefer the managed cred file (~/.sould/surreal-cred.json) and fall " +
       "back to legacy root:root only as a last resort. Set SURREAL_USER and " +
       "SURREAL_PASS to pin auth explicitly.",
     );
   }
 
-  if (process.env.LAQRUMCODE_SKIP_BOOTSTRAP !== "1") {
+  if (process.env.SOULD_SKIP_BOOTSTRAP !== "1") {
     setBootstrapPhase("npm-install");
     try {
       const result = await bootstrap({
@@ -233,7 +233,7 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
         surrealCredsExplicit: config.surreal.credsExplicit,
       });
       if (result.surrealServer.managed || result.surrealServer.url) {
-        // Bootstrap may have detected an existing laqrumcode SurrealDB on a
+        // Bootstrap may have detected an existing sould SurrealDB on a
         // legacy port (8000/8042) and returned its URL. Either way, point
         // the store at whatever bootstrap chose.
         (config.surreal as { url: string }).url = result.surrealServer.url;
@@ -263,7 +263,7 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
       return; // No point setting up store/embeddings if bootstrap exploded.
     }
   } else {
-    log.info("[bootstrap] skipped (LAQRUMCODE_SKIP_BOOTSTRAP=1)");
+    log.info("[bootstrap] skipped (SOULD_SKIP_BOOTSTRAP=1)");
   }
 
   const store = new SurrealStore(config.surreal);
@@ -273,7 +273,7 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
   store.setIrrecoverableWedgeHandler((info) => wedgeExitHandler(info));
   const embeddings = new EmbeddingService(config.embedding, resourceProfile);
   globalState = new GlobalPluginState(config, store, embeddings);
-  globalState.workspaceDir = process.env.LAQRUMCODE_PROJECT_DIR ?? process.cwd();
+  globalState.workspaceDir = process.env.SOULD_PROJECT_DIR ?? process.cwd();
 
   // Wire session-removed cleanup so per-session staged retrieval entries
   // (now keyed by sessionId after the Map refactor) get purged when a
@@ -321,7 +321,7 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
   // post-0.7.85.
   if (globalState) {
     const drainThreshold = (() => {
-      const env = process.env.LAQRUMCODE_AUTO_DRAIN_THRESHOLD;
+      const env = process.env.SOULD_AUTO_DRAIN_THRESHOLD;
       if (env !== undefined) {
         const n = Number(env);
         return Number.isFinite(n) && n >= 0 ? n : 5;
@@ -329,7 +329,7 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
       return 5;
     })();
     const drainIntervalMs = (() => {
-      const env = process.env.LAQRUMCODE_AUTO_DRAIN_INTERVAL_MS;
+      const env = process.env.SOULD_AUTO_DRAIN_INTERVAL_MS;
       if (env !== undefined) {
         const n = Number(env);
         return Number.isFinite(n) && n >= 0 ? n : resourceProfile.drainIntervalMs;
@@ -337,7 +337,7 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
       return resourceProfile.drainIntervalMs;
     })();
     const drainMaxDaily = (() => {
-      const env = process.env.LAQRUMCODE_AUTO_DRAIN_MAX_DAILY;
+      const env = process.env.SOULD_AUTO_DRAIN_MAX_DAILY;
       if (env !== undefined) {
         const n = Number(env);
         return Number.isFinite(n) && n >= 0 ? n : 50;
@@ -435,7 +435,7 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
   }, MAINTENANCE_GATE_DELAY_MS).unref?.();
 
   // Cross-encoder reranker (bge-reranker-v2-m3). Optional — if the model file
-  // doesn't exist OR LAQRUMCODE_RERANKER_DISABLED=1, recall falls back to
+  // doesn't exist OR SOULD_RERANKER_DISABLED=1, recall falls back to
   // WMR/ACAN scoring without reranking. The model file (~606MB) is
   // downloaded by bootstrap when enabled. Same configuration that hit
   // 98.2% R@5 on LongMemEval in laqrumclaw.
@@ -453,9 +453,9 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
 
   // Register hook handlers + start the legacy HTTP API on a per-PID Unix
   // socket. hook-proxy.cjs (the script Claude Code's hooks.json invokes)
-  // expects to find ~/.laqrumcode-<pid>.sock and POST hook events to it.
+  // expects to find ~/.sould-<pid>.sock and POST hook events to it.
   // Without this, SessionStart/UserPromptSubmit/Stop all silently no-op
-  // because the new IPC socket (~/.laqrumcode-daemon.sock) isn't what
+  // because the new IPC socket (~/.sould-daemon.sock) isn't what
   // hook-proxy.cjs looks for. Same handlers as the IPC routes — we just
   // expose them over both transports for compat.
   registerHookHandler("session-start", handleSessionStart);
@@ -470,7 +470,7 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
   registerHookHandler("subagent-stop", handleSubagentStop);
 
   const homeDir = process.env.HOME || process.env.USERPROFILE || "/tmp";
-  const hookSocketPath = `${homeDir}/.laqrumcode-${process.pid}.sock`;
+  const hookSocketPath = `${homeDir}/.sould-${process.pid}.sock`;
   try {
     await startHttpApi(globalState!, hookSocketPath, homeDir);
     log.info(`[daemon] hook HTTP API listening on ${hookSocketPath}`);
@@ -481,17 +481,17 @@ async function initializeStack(getActiveClientCount?: () => number): Promise<voi
   pruneStalePluginCache();
 
   setBootstrapPhase("ready");
-  log.info("[daemon] laqrumcode stack ready");
+  log.info("[daemon] sould stack ready");
 }
 
 function pidFilePath(): string {
   return join(homedir(), DAEMON_PID_FILE);
 }
 
-/** Marker written inside daemon.pid as JSON. Distinguishes a real laqrumcode
+/** Marker written inside daemon.pid as JSON. Distinguishes a real sould
  *  daemon from any other process that might recycle the same PID. */
 interface DaemonPidMarker {
-  marker: "laqrumcode-daemon";
+  marker: "sould-daemon";
   pid: number;
   startedAt: number;
   daemonVersion: string;
@@ -516,17 +516,17 @@ const DAEMON_LOCK_EMPTY_THRESHOLD_BYTES = 10;
  *  check to short-circuit the 30-min stale wait for crash-during-write. */
 const DAEMON_LOCK_EMPTY_STALE_AGE_MS = 5_000;
 
-/** Read /proc/<pid>/cmdline on Linux and check it looks like a laqrumcode daemon.
+/** Read /proc/<pid>/cmdline on Linux and check it looks like a sould daemon.
  *  cmdline is NUL-separated. We require 'node' in argv[0] AND a hint that the
- *  process is the daemon — either 'laqrumcode' anywhere or a path component like
+ *  process is the daemon — either 'sould' anywhere or a path component like
  *  'daemon/index.js'/'daemon/index.cjs'. On non-Linux platforms /proc is
  *  unavailable so we conservatively return null ('cannot verify').
  *
- *  Returns true  → confirmed to be a laqrumcode daemon (don't steal lock)
+ *  Returns true  → confirmed to be a sould daemon (don't steal lock)
  *  Returns false → confirmed to be a different process (safe to steal)
  *  Returns null  → cannot determine (treat as 'maybe alive' on linux, fall
  *                  back to PID-alive on other platforms) */
-function cmdlineLooksLikeLaqrumcodeDaemon(pid: number): boolean | null {
+function cmdlineLooksLikeSouldDaemon(pid: number): boolean | null {
   if (platform() !== "linux") return null;
   try {
     const raw = readFileSync(`/proc/${pid}/cmdline`, "utf8");
@@ -534,9 +534,9 @@ function cmdlineLooksLikeLaqrumcodeDaemon(pid: number): boolean | null {
     // cmdline is NUL-separated; rejoin with spaces for substring tests.
     const joined = raw.replace(/\0/g, " ").toLowerCase();
     if (!joined.includes("node")) return false;
-    if (joined.includes("laqrumcode-daemon")) return true;
+    if (joined.includes("sould-daemon")) return true;
     if (joined.includes("daemon/index.js") || joined.includes("daemon/index.cjs")) return true;
-    if (joined.includes("laqrumcode") && joined.includes("daemon")) return true;
+    if (joined.includes("sould") && joined.includes("daemon")) return true;
     return false;
   } catch {
     // /proc/<pid>/cmdline missing → PID isn't running. Caller treats this
@@ -556,7 +556,7 @@ function isPidAlive(pid: number): boolean {
 let daemonLockFd: number | null = null;
 
 /** Acquire an exclusive lock on daemon.pid. Refuses to start if another live
- *  laqrumcode daemon already owns it. Returns true on success; on failure
+ *  sould daemon already owns it. Returns true on success; on failure
  *  exits the process (the daemon singleton invariant is non-negotiable).
  *
  *  Lock-stealing rules:
@@ -571,7 +571,7 @@ function acquireDaemonSingletonLock(): void {
 
   const writeMarker = (fd: number) => {
     const marker: DaemonPidMarker = {
-      marker: "laqrumcode-daemon",
+      marker: "sould-daemon",
       pid: process.pid,
       startedAt: Date.now(),
       daemonVersion: DAEMON_VERSION,
@@ -606,7 +606,7 @@ function acquireDaemonSingletonLock(): void {
     // Try JSON marker (new format) first.
     try {
       const parsed = JSON.parse(raw) as DaemonPidMarker;
-      if (parsed && parsed.marker === "laqrumcode-daemon" && Number.isFinite(parsed.pid)) {
+      if (parsed && parsed.marker === "sould-daemon" && Number.isFinite(parsed.pid)) {
         holderMarker = parsed;
         holderPid = parsed.pid;
       }
@@ -645,11 +645,11 @@ function acquireDaemonSingletonLock(): void {
     stale = true;
     reason = `pid ${holderPid} not alive`;
   } else {
-    // PID is alive. Verify it's actually a laqrumcode daemon, not a recycled PID.
-    const looksLike = cmdlineLooksLikeLaqrumcodeDaemon(holderPid);
+    // PID is alive. Verify it's actually a sould daemon, not a recycled PID.
+    const looksLike = cmdlineLooksLikeSouldDaemon(holderPid);
     if (looksLike === false) {
       stale = true;
-      reason = `pid ${holderPid} alive but cmdline doesn't match laqrumcode daemon (recycled PID)`;
+      reason = `pid ${holderPid} alive but cmdline doesn't match sould daemon (recycled PID)`;
     } else {
       // looksLike === true OR null (non-Linux: cannot verify, must assume valid).
       stale = false;
@@ -658,7 +658,7 @@ function acquireDaemonSingletonLock(): void {
 
   if (!stale) {
     const versionInfo = holderMarker ? ` v${holderMarker.daemonVersion} startedAt=${new Date(holderMarker.startedAt).toISOString()}` : "";
-    log.error(`[daemon] REFUSING TO START — another laqrumcode daemon already owns ${path} (pid=${holderPid}${versionInfo}). Stop the existing daemon first or remove the lock file if you're certain it's stale.`);
+    log.error(`[daemon] REFUSING TO START — another sould daemon already owns ${path} (pid=${holderPid}${versionInfo}). Stop the existing daemon first or remove the lock file if you're certain it's stale.`);
     process.exit(1);
   }
 
@@ -712,7 +712,7 @@ function removeOwnPidFile(): void {
     let ours = false;
     try {
       const parsed = JSON.parse(raw) as DaemonPidMarker;
-      ours = parsed && parsed.marker === "laqrumcode-daemon" && parsed.pid === process.pid;
+      ours = parsed && parsed.marker === "sould-daemon" && parsed.pid === process.pid;
     } catch {
       // Legacy plain-PID file.
       ours = Number(raw.trim()) === process.pid;
@@ -737,7 +737,7 @@ let daemonHandshakeToken: string | null = null;
 
 /** Mint the per-user handshake token and persist it at 0600 in the user's home.
  *  Called only when the daemon binds TCP as a real transport (Windows, or
- *  LAQRUMCODE_DAEMON_TRANSPORT=tcp / LAQRUMCODE_DAEMON_PORT). The file is written
+ *  SOULD_DAEMON_TRANSPORT=tcp / SOULD_DAEMON_PORT). The file is written
  *  with O_CREAT|O_TRUNC|O_WRONLY at mode 0600 so a different OS user — who, on
  *  loopback TCP, CAN reach the port — cannot read the secret and is therefore
  *  rejected at handshake even on a rare per-user-port hash collision. Returns
@@ -781,45 +781,45 @@ function removeOwnTokenFile(): void {
 }
 
 async function main(): Promise<void> {
-  log.info(`[daemon] starting laqrumcode-daemon ${DAEMON_VERSION} (pid=${process.pid})`);
+  log.info(`[daemon] starting sould-daemon ${DAEMON_VERSION} (pid=${process.pid})`);
 
   // GPU/CPU selection was resolved at module load (before detectResourceProfile);
   // log the outcome here, now that the logger is up.
   if (gpuPin.applied) {
     log.info(gpuPin.mode === "cpu"
-      ? `[daemon] GPU pin: CPU-only (LAQRUMCODE_NO_GPU=1, from ${gpuPin.source})`
+      ? `[daemon] GPU pin: CPU-only (SOULD_NO_GPU=1, from ${gpuPin.source})`
       : `[daemon] GPU pin: CUDA_VISIBLE_DEVICES=${gpuPin.value} (from ${gpuPin.source})`);
   }
 
   // Acquire daemon singleton lock BEFORE binding the socket. Two daemons
-  // bound to the same .laqrumcode-daemon.sock both run startDrainScheduler
+  // bound to the same .sould-daemon.sock both run startDrainScheduler
   // and double-process pending_work — a major amplifier of the duplicate-row
   // bug. The lock fd is held for the daemon's lifetime; cleaned up by
   // removeOwnPidFile() during graceful shutdown.
   acquireDaemonSingletonLock();
 
   // Resolve socket / port from env with sensible defaults.
-  const socketPath = process.env.LAQRUMCODE_DAEMON_SOCKET ?? DEFAULT_DAEMON_SOCKET_PATH;
+  const socketPath = process.env.SOULD_DAEMON_SOCKET ?? DEFAULT_DAEMON_SOCKET_PATH;
 
   // Disable Unix socket if explicitly told to (Windows or paranoid setups).
-  const useUds = process.env.LAQRUMCODE_DAEMON_TRANSPORT !== "tcp" && process.platform !== "win32";
+  const useUds = process.env.SOULD_DAEMON_TRANSPORT !== "tcp" && process.platform !== "win32";
 
   // GH #13 (multi-user port collision): when UDS is the primary transport, do
   // NOT also bind a TCP port. The Unix socket already lives at a per-user path
-  // ($HOME/.laqrumcode-daemon.sock), giving each OS user their own daemon
+  // ($HOME/.sould-daemon.sock), giving each OS user their own daemon
   // endpoint. Binding a TCP port on top of that made the 2nd OS user's daemon
-  // crash with EADDRINUSE. An explicit LAQRUMCODE_DAEMON_PORT still forces a TCP
+  // crash with EADDRINUSE. An explicit SOULD_DAEMON_PORT still forces a TCP
   // bind (opt-in, e.g. for clients that can only speak TCP). On Windows useUds
   // is false, so TCP remains the sole transport.
   //
   // S6 (multi-OS-user Windows host): when TCP IS the transport, bind the
   // PER-USER port from resolveTcpPort() — the SAME helper the client uses, so
   // the two derive an identical port (DEFAULT_DAEMON_TCP_PORT + hash(user)%N,
-  // or the verbatim LAQRUMCODE_DAEMON_PORT override). The prior flat 18764 let a
+  // or the verbatim SOULD_DAEMON_PORT override). The prior flat 18764 let a
   // 2nd OS user's client fast-path-ping that port and ADOPT this user's daemon
   // + private graph. Different accounts now land on different ports; the 0600
   // handshake token below is the collision backstop.
-  const tcpPortEnv = process.env.LAQRUMCODE_DAEMON_PORT;
+  const tcpPortEnv = process.env.SOULD_DAEMON_PORT;
   const tcpPort = (tcpPortEnv || !useUds) ? resolveTcpPort() : null;
 
   // S6: if we will serve over TCP, mint + persist the per-user handshake token
@@ -836,13 +836,13 @@ async function main(): Promise<void> {
   // idleTimeoutMs, reaping the daemon so it doesn't hold RAM for nobody. The
   // resolved default is resourceProfile.idleTimeoutMs — 300_000ms (5 min) on
   // the "constrained" tier, 60_000ms (1 min) on "standard"/"generous" (see
-  // resource-tier.ts). Override with LAQRUMCODE_DAEMON_IDLE_TIMEOUT_MS (ms;
+  // resource-tier.ts). Override with SOULD_DAEMON_IDLE_TIMEOUT_MS (ms;
   // 0 = reap immediately; higher for shared-server / cron-driven setups where
   // intermittent clients don't want a cold-start penalty between disconnects).
   // The timer arms on listen() and on every disconnect-to-zero; it cancels on
   // every connect.
   const idleTimeoutMs = (() => {
-    const env = process.env.LAQRUMCODE_DAEMON_IDLE_TIMEOUT_MS;
+    const env = process.env.SOULD_DAEMON_IDLE_TIMEOUT_MS;
     if (env !== undefined) {
       const n = Number(env);
       return Number.isFinite(n) && n >= 0 ? n : resourceProfile.idleTimeoutMs;
@@ -862,7 +862,7 @@ async function main(): Promise<void> {
   // that the code refresh actually lands the same working session. Set 0 to
   // disable the bound (legacy wait-for-last-disconnect-only behavior).
   const supersedeGraceMs = (() => {
-    const env = process.env.LAQRUMCODE_DAEMON_SUPERSEDE_GRACE_MS;
+    const env = process.env.SOULD_DAEMON_SUPERSEDE_GRACE_MS;
     if (env !== undefined) {
       const n = Number(env);
       return Number.isFinite(n) && n >= 0 ? n : 3 * 60_000;
@@ -955,7 +955,7 @@ async function main(): Promise<void> {
     supersedeGraceMs,
     onSupersedeDeadline: reaperExit(`supersede grace window (${Math.round(supersedeGraceMs / 1000)}s) elapsed with clients still attached`),
     // Fires when the idle timer expires (configurable via
-    // LAQRUMCODE_DAEMON_IDLE_TIMEOUT_MS, default 30min). Daemon has had zero
+    // SOULD_DAEMON_IDLE_TIMEOUT_MS, default 30min). Daemon has had zero
     // attached clients for the duration. Frees BGE-M3 + SurrealDB
     // connection so RAM isn't pinned indefinitely. Next client connect
     // triggers a fresh spawn via ensureDaemon.
@@ -1070,7 +1070,7 @@ async function main(): Promise<void> {
         return {
           content: [{
             type: "text",
-            text: `laqrumcode daemon is still initializing (phase=${bootstrapPhase}, ${elapsed}s elapsed). Try again shortly.`,
+            text: `sould daemon is still initializing (phase=${bootstrapPhase}, ${elapsed}s elapsed). Try again shortly.`,
           }],
         };
       }
@@ -1171,21 +1171,21 @@ async function main(): Promise<void> {
   // E10: listen() now throws a distinguishable TcpPortInUseError on EADDRINUSE
   // (TCP transport) after probing the occupant. Surface each kind with the
   // right semantics instead of a generic "fatal error":
-  //   - laqrumcode: a sibling daemon already serves this user's port. Not a
+  //   - sould: a sibling daemon already serves this user's port. Not a
   //     crash — the singleton is already up, so release our just-acquired lock
   //     + token and exit 0; the client reuses the existing daemon. (The spawn
   //     lock should normally prevent reaching here; this is the belt-and-braces
   //     recovery for a stolen-as-stale-but-actually-alive race.)
-  //   - foreign: a non-laqrumcode process squats the port. A real failure the
-  //     operator must fix (free the port / set LAQRUMCODE_DAEMON_PORT) — exit 1
+  //   - foreign: a non-sould process squats the port. A real failure the
+  //     operator must fix (free the port / set SOULD_DAEMON_PORT) — exit 1
   //     with the clear message rather than a raw bind stack trace.
   try {
     await server.listen();
   } catch (e) {
     if (e instanceof TcpPortInUseError) {
-      if (e.kind === "laqrumcode-daemon") {
+      if (e.kind === "sould-daemon") {
         log.warn(`[daemon] ${e.message}`);
-        log.warn(`[daemon] deferring to the existing laqrumcode daemon — not starting a second instance`);
+        log.warn(`[daemon] deferring to the existing sould daemon — not starting a second instance`);
         // Release OUR pid lock (truthful: we're not running). Deliberately do
         // NOT touch the handshake token file here — the live sibling's TCP auth
         // reads it, and we can't restore its original secret, so leaving the

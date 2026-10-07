@@ -1,7 +1,7 @@
 /**
  * DB-state invariants — live integration test.
  *
- * Reads the production laqrumcode SurrealDB and asserts three invariants
+ * Reads the production sould SurrealDB and asserts three invariants
  * that caught real bugs in the v0.7.93–v0.7.95 investigation:
  *
  *   1. Embedding coverage: zero unembedded rows on every content table.
@@ -17,7 +17,7 @@
  *      the superseded name. Catches v0.7.92-class bugs where supersede
  *      promoted an unrelated concept.
  *
- * Skip behavior: skips cleanly if the laqrumcode daemon socket is absent
+ * Skip behavior: skips cleanly if the sould daemon socket is absent
  * (matches the `daemon-tool-roundtrip` integration test gate). Opt out
  * explicitly with `SKIP_DB_STATE=1`.
  *
@@ -38,7 +38,7 @@ import { parsePluginConfig } from "../../src/engine/config.js";
 import { readManagedCred } from "../../src/engine/bootstrap.js";
 
 const SOCKET_PATH =
-  process.env.LAQRUMCODE_DAEMON_SOCKET ?? join(homedir(), ".laqrumcode-daemon.sock");
+  process.env.SOULD_DAEMON_SOCKET ?? join(homedir(), ".sould-daemon.sock");
 
 const RUN_LIVE =
   existsSync(SOCKET_PATH) && process.env.SKIP_DB_STATE !== "1";
@@ -55,7 +55,7 @@ const CONTENT_TABLES = [
   "reflection",
 ] as const;
 
-describe.skipIf(!RUN_LIVE)("laqrumcode DB state invariants (live, read-only)", () => {
+describe.skipIf(!RUN_LIVE)("sould DB state invariants (live, read-only)", () => {
   let db: Surreal | undefined;
 
   beforeAll(async () => {
@@ -68,7 +68,7 @@ describe.skipIf(!RUN_LIVE)("laqrumcode DB state invariants (live, read-only)", (
     // same chain.
     const cred = config.surreal.credsExplicit
       ? { user, pass }
-      : (readManagedCred(join(homedir(), ".laqrumcode", "cache")) ?? { user, pass });
+      : (readManagedCred(join(homedir(), ".sould", "cache")) ?? { user, pass });
     db = new Surreal();
     await db.connect(url, {
       namespace: ns,
@@ -203,7 +203,7 @@ describe.skipIf(!RUN_LIVE)("laqrumcode DB state invariants (live, read-only)", (
         expect(
           count,
           `${count} ${table} rows have superseded_by = id (self-ref). ` +
-            `Run the heal in laqrumcode-heal-skill-corruption skill ` +
+            `Run the heal in sould-heal-skill-corruption skill ` +
             `(skill:j12hn8rf00muaww4rv0g) and ensure all id != $X SELECTs ` +
             `use type::record($X).`,
         ).toBe(0);

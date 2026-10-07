@@ -356,8 +356,8 @@ describe("seedSoulAsCoreMemory", () => {
   }
 
   const fakeSoul: SoulDocument = {
-    id: "soul:laqrumbrain",
-    agent_id: "laqrumbrain",
+    id: "soul:souldbrain",
+    agent_id: "souldbrain",
     working_style: ["I verify before acting", "I prefer small incremental changes"],
     emotional_dimensions: [{ dimension: "patience", description: "waited for tests", adopted_at: "2026-01-01" }],
     self_observations: ["I tend to over-plan", "I'm good at debugging"],

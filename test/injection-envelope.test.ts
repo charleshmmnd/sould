@@ -3,7 +3,7 @@
  *
  * Every assembled context string went through stripStructuralTags on the way
  * out, and <recalled_memory>, <active_directives>, <session_directives> and
- * <reflection_context> are all on that tag list — so the tags laqrumcode had
+ * <reflection_context> are all on that tag list — so the tags sould had
  * just written were deleted before the block reached the model. Tier-0 and
  * tier-1 directives arrived as one unlabelled run of bullets, with nothing
  * downstream able to tell a permanent rule from a session pin.

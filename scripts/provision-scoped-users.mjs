@@ -18,7 +18,7 @@
  * argv or env echoes — so the daemon-side credential (already on disk, 0600)
  * and the DB-side user converge on the same secret:
  *
- *   ~/.laqrumcode/surreal-cred.json  → laqrum_<uid>
+ *   ~/.sould/surreal-cred.json  → laqrum_<uid>
  *   ~/.kongcode/surreal-cred.json    → kong_<uid>   (skipped when absent)
  *
  * Run with admin credentials via env:
@@ -49,9 +49,9 @@ function loadCred(path) {
 }
 
 const targets = [];
-const laqrumPath = homedir() + "/.laqrumcode/surreal-cred.json";
+const souldPath = homedir() + "/.sould/surreal-cred.json";
 const kongPath = homedir() + "/.kongcode/surreal-cred.json";
-if (existsSync(laqrumPath)) targets.push({ ns: "laqrum", db: "memory", cred: loadCred(laqrumPath) });
+if (existsSync(souldPath)) targets.push({ ns: "sould", db: "memory", cred: loadCred(souldPath) });
 if (existsSync(kongPath)) targets.push({ ns: "kong", db: "memory", cred: loadCred(kongPath) });
 if (targets.length === 0) {
   console.error("no managed cred files found — nothing to provision");

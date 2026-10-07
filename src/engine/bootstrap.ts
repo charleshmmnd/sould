@@ -225,12 +225,12 @@ function surfaceSupervisorDegraded(message: string): void {
   log.error(
     `[bootstrap] managed SurrealDB SUPERVISOR DEGRADED: ${message}\n` +
       `  data dir: ${dataDir}\n` +
-      `  The managed database child could not be kept running. laqrumcode has STOPPED\n` +
+      `  The managed database child could not be kept running. sould has STOPPED\n` +
       `  respawning to avoid a crash loop and has NOT modified your data.\n` +
       `  If the store is corrupt, recover by restoring a backup, e.g.:\n` +
       `    surreal import --conn http://127.0.0.1:<port> --user <user> --pass <pass> \\\n` +
-      `      --ns laqrum --db memory <your-export.surql>\n` +
-      `  (or restore a gc-backup snapshot). laqrumcode will not auto-recover or delete the\n` +
+      `      --ns sould --db memory <your-export.surql>\n` +
+      `  (or restore a gc-backup snapshot). sould will not auto-recover or delete the\n` +
       `  data dir — that is a human decision.`,
   );
   const store = supervisorState.store;
@@ -339,24 +339,24 @@ async function onManagedChildExit(reason: string): Promise<void> {
  *  Three runtime layouts to handle:
  *    1. Compiled tsc: bootstrap.js at <plugin>/dist/engine/ — walk up 2.
  *    2. esbuild bundle: bundle.cjs at <plugin>/dist/daemon/ — walk up 2.
- *    3. SEA executable: binary at <plugin>/bin/laqrumcode-daemon-<platform>
+ *    3. SEA executable: binary at <plugin>/bin/sould-daemon-<platform>
  *       — walk up 1 (NOT 2; the SEA binary lives in bin/, not dist/engine/).
  *
  *  Under SEA (CJS-in-binary), import.meta.url is undefined and fileURLToPath
  *  throws — caught and we use process.execPath instead.
  *
- *  LAQRUMCODE_PLUGIN_DIR env var always wins for explicit overrides (tests,
+ *  SOULD_PLUGIN_DIR env var always wins for explicit overrides (tests,
  *  unusual install layouts).
  */
 export function resolvePluginDir(): string {
-  if (process.env.LAQRUMCODE_PLUGIN_DIR) return process.env.LAQRUMCODE_PLUGIN_DIR;
+  if (process.env.SOULD_PLUGIN_DIR) return process.env.SOULD_PLUGIN_DIR;
   try {
     const moduleDir = dirname(fileURLToPath(import.meta.url));
     // bootstrap.js at <pluginDir>/dist/engine/ — walk up two levels.
     return join(moduleDir, "..", "..");
   } catch {
     // SEA / CJS path: process.execPath is the SEA binary at
-    // <pluginDir>/bin/laqrumcode-{daemon,mcp}-<platform>. Walk up ONE level.
+    // <pluginDir>/bin/sould-{daemon,mcp}-<platform>. Walk up ONE level.
     return join(dirname(process.execPath), "..");
   }
 }
@@ -526,11 +526,11 @@ async function ensureNpmDeps(
   }
   // Skip when no package.json is adjacent — under SEA the binary stands alone
   // (deps are bundled inline + native pieces downloaded separately into the
-  // cache), and LAQRUMCODE_SKIP_NPM_CI is an explicit opt-out for advanced setups.
+  // cache), and SOULD_SKIP_NPM_CI is an explicit opt-out for advanced setups.
   if (!existsSync(join(pluginDir, "package.json"))) {
     return { ran: false, durationMs: 0 };
   }
-  if (process.env.LAQRUMCODE_SKIP_NPM_CI === "1") {
+  if (process.env.SOULD_SKIP_NPM_CI === "1") {
     return { ran: false, durationMs: 0 };
   }
   log.info(
@@ -564,7 +564,7 @@ async function ensureSurrealBinary(
   const platform = manifest.surrealdb.platforms[platformKey];
   if (!platform) {
     throw new Error(
-      `laqrumcode bootstrap does not have a SurrealDB binary mapping for platform "${platformKey}". ` +
+      `sould bootstrap does not have a SurrealDB binary mapping for platform "${platformKey}". ` +
         `Supported: ${Object.keys(manifest.surrealdb.platforms).join(", ")}. ` +
         `Workaround: install SurrealDB ${manifest.surrealdb.version} manually and set SURREAL_BIN_PATH, ` +
         `or point SURREAL_URL at an existing SurrealDB instance.`,
@@ -612,7 +612,7 @@ async function ensureSurrealBinary(
  * node-llama-cpp's main code does require("@node-llama-cpp/<platform>"),
  * Node walks up from <cacheDir>/native/node-llama-cpp/dist/ and finds it.
  *
- * Sets LAQRUMCODE_NODE_LLAMA_CPP_PATH to the absolute index.js path so
+ * Sets SOULD_NODE_LLAMA_CPP_PATH to the absolute index.js path so
  * src/engine/llama-loader.ts imports from the right place.
  *
  * Skipped when running under standard Node + node_modules (the existing
@@ -635,7 +635,7 @@ async function ensureNodeLlamaCpp(
   const platformMapping = manifest.nodeLlamaCpp.platforms[platformKey];
   if (!platformMapping) {
     log.warn(
-      `[bootstrap] node-llama-cpp: no platform mapping for ${platformKey} — embeddings will fail unless LAQRUMCODE_NODE_LLAMA_CPP_PATH is set.`,
+      `[bootstrap] node-llama-cpp: no platform mapping for ${platformKey} — embeddings will fail unless SOULD_NODE_LLAMA_CPP_PATH is set.`,
     );
     return { mainPath: null, provisioned: false };
   }
@@ -650,7 +650,7 @@ async function ensureNodeLlamaCpp(
 
   // Idempotent: skip download if both already extracted.
   if (existsSync(mainEntry) && existsSync(platformPkg)) {
-    process.env.LAQRUMCODE_NODE_LLAMA_CPP_PATH = mainEntry;
+    process.env.SOULD_NODE_LLAMA_CPP_PATH = mainEntry;
     return { mainPath: mainEntry, provisioned: false };
   }
 
@@ -679,12 +679,12 @@ async function ensureNodeLlamaCpp(
   if (!existsSync(mainEntry)) {
     throw new Error(`node-llama-cpp tarball did not extract to expected path ${mainEntry}`);
   }
-  process.env.LAQRUMCODE_NODE_LLAMA_CPP_PATH = mainEntry;
+  process.env.SOULD_NODE_LLAMA_CPP_PATH = mainEntry;
   return { mainPath: mainEntry, provisioned: true };
 }
 
 /** Download ajv + ajv-formats into <cacheDir>/native/node_modules/ so the
- *  bundled MCP client (laqrumcode-mcp under SEA) can resolve their dynamic
+ *  bundled MCP client (sould-mcp under SEA) can resolve their dynamic
  *  require() calls at runtime. The MCP SDK uses ajv via dynamic require
  *  (createRequire(import.meta.url) → require("ajv/dist/runtime/...")) which
  *  esbuild can't statically resolve, so they MUST be externalized and
@@ -782,7 +782,7 @@ async function ensureRerankerModel(
   enabled: boolean,
 ): Promise<{ path: string | null; provisioned: boolean; sizeBytes: number; skipped: boolean }> {
   if (!enabled) {
-    log.info("[bootstrap] reranker disabled (LAQRUMCODE_RERANKER_DISABLED=1) — skipping download");
+    log.info("[bootstrap] reranker disabled (SOULD_RERANKER_DISABLED=1) — skipping download");
     return { path: null, provisioned: false, sizeBytes: 0, skipped: true };
   }
   if (!manifest.rerankerModel) {
@@ -812,11 +812,11 @@ const SURREAL_PID_FILENAME = "surreal.pid";
 
 /** Phase 2 (multi-user auth, after GH #13): the MANAGED SurrealDB child no
  *  longer uses the root:root default. Instead we generate a per-user/-machine
- *  credential and persist it next to the laqrumcode home so a reused detached
+ *  credential and persist it next to the sould home so a reused detached
  *  child (Option A) and the connecting daemon agree on the same secret.
  *
- *  Stored at ~/.laqrumcode/surreal-cred.json — sibling of cache/ and data/, since
- *  cacheDir resolves to ~/.laqrumcode/cache. Derived from cacheDir's parent so
+ *  Stored at ~/.sould/surreal-cred.json — sibling of cache/ and data/, since
+ *  cacheDir resolves to ~/.sould/cache. Derived from cacheDir's parent so
  *  tests that inject a temp cacheDir get an injectable, isolated cred path. */
 const SURREAL_CRED_FILENAME = "surreal-cred.json";
 
@@ -826,7 +826,7 @@ export interface ManagedSurrealCred {
 }
 
 /** Resolve the cred-file path from the bootstrap cacheDir. cacheDir is
- *  ~/.laqrumcode/cache in production, so the parent is ~/.laqrumcode. Keeping it a
+ *  ~/.sould/cache in production, so the parent is ~/.sould. Keeping it a
  *  sibling of cacheDir (rather than inside it) means a `rm -rf cache/` to force
  *  a re-download of the binary/model does NOT nuke the credential and orphan a
  *  still-running managed child that was spawned with it. */
@@ -840,8 +840,8 @@ function surrealCredPath(cacheDir: string): string {
  *  exact secret a previously-spawned detached child (Option A) is already
  *  running with. Otherwise a fresh credential is generated and written.
  *
- *  - user: `laqrum_<uid>` on POSIX (matches the iLaqrum per-user naming precedent),
- *    plain `laqrum` where getuid is unavailable (Windows).
+ *  - user: `sould_<uid>` on POSIX (per-user naming, same scheme as before the rename),
+ *    plain `sould` where getuid is unavailable (Windows).
  *  - pass: 24 random bytes, base64url (~32 chars, URL/CLI-safe, no padding).
  *  - File perms tightened to 0600 best-effort (cross-platform: chmod is a
  *    no-op-ish on Windows and is wrapped in try/catch so it never throws).
@@ -880,11 +880,11 @@ export function getOrCreateManagedCred(cacheDir: string): ManagedSurrealCred {
   }
   // Generate fresh.
   const uid = typeof process.getuid === "function" ? process.getuid() : null;
-  const user = uid === null ? "laqrum" : `laqrum_${uid}`;
+  const user = uid === null ? "sould" : `sould_${uid}`;
   const pass = randomBytes(24).toString("base64url");
   const cred: ManagedSurrealCred = { user, pass };
   try {
-    // Ensure parent (~/.laqrumcode) exists; cacheDir's own mkdir happens later,
+    // Ensure parent (~/.sould) exists; cacheDir's own mkdir happens later,
     // but the cred sits one level up so we create that level here. E14: narrow
     // the parent dir to 0700 so the cred file is never reachable through a
     // world-traversable directory (best-effort; no-op / EPERM on Windows).
@@ -922,7 +922,7 @@ function managedCredFileExists(cacheDir: string): boolean {
  *  full bootstrap (npm ci + binary/model downloads).
  *
  *  Inputs:
- *   - discoveredPid: findExistingLaqrumcodeSurreal's returned pid. Non-null ⟺ a
+ *   - discoveredPid: findExistingSouldSurreal's returned pid. Non-null ⟺ a
  *     managed-surface port for which we hold a LIVE pid file (it is OUR managed
  *     child). Null ⟺ an EXTERNAL DB (8000/8042) whose lifecycle we don't own.
  *   - credFileExists: managedCredFileExists(cacheDir).
@@ -984,20 +984,20 @@ export function buildExternalCredChain(args: {
   return chain;
 }
 
-/** Tables that are unique to laqrumcode's schema — used as a fingerprint to
+/** Tables that are unique to sould's schema — used as a fingerprint to
  *  distinguish "this is our DB" from "this is a SurrealDB someone else
  *  happens to be running on the same port" (e.g., a trading bot's DB).
- *  These names are laqrumcode-specific enough that a generic SurrealDB
+ *  These names are sould-specific enough that a generic SurrealDB
  *  install or a different application would not have them. */
-const LAQRUMCODE_FINGERPRINT_TABLES = ["monologue", "identity_chunk", "acan_state", "causal"];
+const SOULD_FINGERPRINT_TABLES = ["monologue", "identity_chunk", "acan_state", "causal"];
 
-/** Probe a candidate SurrealDB URL to determine if it's a laqrumcode database.
- *  Three checks: HTTP /health alive, auth succeeds against laqrum/memory ns/db,
- *  INFO FOR DB returns at least one laqrumcode-fingerprint table.
+/** Probe a candidate SurrealDB URL to determine if it's a sould database.
+ *  Three checks: HTTP /health alive, auth succeeds against sould/memory ns/db,
+ *  INFO FOR DB returns at least one sould-fingerprint table.
  *
  *  Returns true only when all three pass. False on any failure (timeout,
  *  auth fail, wrong ns/db, missing tables). */
-async function isLaqrumcodeSurreal(
+async function isSouldSurreal(
   url: string,
   user: string,
   pass: string,
@@ -1013,7 +1013,7 @@ async function isLaqrumcodeSurreal(
         "Content-Type": "application/json",
         Accept: "application/json",
         Authorization: "Basic " + Buffer.from(`${user}:${pass}`).toString("base64"),
-        "surreal-ns": "laqrum",
+        "surreal-ns": "sould",
         "surreal-db": "memory",
       },
       body: "INFO FOR DB;",
@@ -1023,14 +1023,14 @@ async function isLaqrumcodeSurreal(
     const data = (await res.json()) as Array<{ result?: { tables?: Record<string, unknown> } }>;
     const tables = data?.[0]?.result?.tables;
     if (!tables || typeof tables !== "object") return false;
-    return LAQRUMCODE_FINGERPRINT_TABLES.some((t) => t in tables);
+    return SOULD_FINGERPRINT_TABLES.some((t) => t in tables);
   } catch {
     return false;
   }
 }
 
 /** Phase 3: auth-only probe — does this credential sign in at `url`? Unlike
- *  isLaqrumcodeSurreal it demands NO fingerprint tables, because the
+ *  isSouldSurreal it demands NO fingerprint tables, because the
  *  SURREAL_URL-override target may be a legitimately EMPTY external DB the
  *  user just provisioned. A trivial statement distinguishes 401 (bad cred)
  *  from 200 (good cred, any DB state). */
@@ -1045,7 +1045,7 @@ async function canAuthSurreal(url: string, user: string, pass: string): Promise<
         "Content-Type": "application/json",
         Accept: "application/json",
         Authorization: "Basic " + Buffer.from(`${user}:${pass}`).toString("base64"),
-        "surreal-ns": "laqrum",
+        "surreal-ns": "sould",
         "surreal-db": "memory",
       },
       body: "RETURN 1;",
@@ -1062,9 +1062,9 @@ async function canAuthSurreal(url: string, user: string, pass: string): Promise<
  * `port`, using only the Linux `/proc` filesystem.
  *
  * --- Threat model (GH #13) ---
- * On a shared host, OS user B must never connect to OS user A's laqrumcode
- * memory graph. The schema fingerprint (isLaqrumcodeSurreal) confirms a port
- * speaks "laqrumcode", but NOT *whose* laqrumcode it is. Without an owner check,
+ * On a shared host, OS user B must never connect to OS user A's sould
+ * memory graph. The schema fingerprint (isSouldSurreal) confirms a port
+ * speaks "sould", but NOT *whose* sould it is. Without an owner check,
  * if user A and user B collided on the same managed port (or A left a DB on
  * the legacy 18765 that B probes), B would silently attach to A's SurrealDB
  * and read/write A's private memory. This helper lets the caller verify the
@@ -1247,13 +1247,13 @@ function readLiveOwnSurrealPid(cacheDir: string): number | null {
   }
 }
 
-/** Find an existing laqrumcode SurrealDB that the bootstrap should reuse instead
+/** Find an existing sould SurrealDB that the bootstrap should reuse instead
  *  of spawning a duplicate. Probes a list of candidate ports, fingerprints the
- *  schema to confirm it's laqrumcode's, AND (GH #13) verifies the listening
+ *  schema to confirm it's sould's, AND (GH #13) verifies the listening
  *  process is owned by the current OS user before connecting.
  *
  *  --- Threat model (GH #13 cross-user data isolation) ---
- *  The schema fingerprint proves a port speaks "laqrumcode" but not WHOSE. On a
+ *  The schema fingerprint proves a port speaks "sould" but not WHOSE. On a
  *  shared host, OS user B must never attach to OS user A's SurrealDB and read
  *  A's private memory graph. So for each fingerprinted port we resolve the
  *  listener's UID (findListenerUid → /proc or lsof) and:
@@ -1275,7 +1275,7 @@ function readLiveOwnSurrealPid(cacheDir: string): number | null {
  *
  *  Returns the first match. SURREAL_URL env var still takes precedence in the
  *  parent caller — this function only runs when the user hasn't pinned a URL. */
-export async function findExistingLaqrumcodeSurreal(
+export async function findExistingSouldSurreal(
   cacheDir: string,
   managedPort: number,
   user: string,
@@ -1291,7 +1291,7 @@ export async function findExistingLaqrumcodeSurreal(
   // that fingerprints wins (returned as user/pass). Without it, behavior is
   // exactly pre-Phase-3: the single user/pass args are the only credential.
   // This matters because a discovery auth failure is indistinguishable from
-  // "not a laqrumcode DB" — pre-chain, rotating the instance's root
+  // "not a sould DB" — pre-chain, rotating the instance's root
   // credential made discovery fall through to a FRESH managed spawn (the
   // split-brain the reuse path exists to prevent).
   credChain?: ManagedSurrealCred[],
@@ -1313,7 +1313,7 @@ export async function findExistingLaqrumcodeSurreal(
   const ourUid = typeof process.getuid === "function" ? process.getuid() : null;
 
   for (const port of candidates) {
-    // Cheap alive-check first to avoid burning the 3s isLaqrumcodeSurreal
+    // Cheap alive-check first to avoid burning the 3s isSouldSurreal
     // timeout on dead ports.
     try {
       const ok = await fetch(`http://127.0.0.1:${port}/health`, {
@@ -1328,13 +1328,13 @@ export async function findExistingLaqrumcodeSurreal(
     const chain = credChain && credChain.length > 0 ? credChain : [{ user, pass }];
     let winner: ManagedSurrealCred | null = null;
     for (const cred of chain) {
-      if (await isLaqrumcodeSurreal(url, cred.user, cred.pass)) {
+      if (await isSouldSurreal(url, cred.user, cred.pass)) {
         winner = cred;
         break;
       }
     }
     if (!winner) {
-      log.debug(`[bootstrap] port ${port} responds but isn't a laqrumcode DB (or no candidate credential authenticates) — skipping`);
+      log.debug(`[bootstrap] port ${port} responds but isn't a sould DB (or no candidate credential authenticates) — skipping`);
       continue;
     }
 
@@ -1343,7 +1343,7 @@ export async function findExistingLaqrumcodeSurreal(
       const ownerUid = resolveOwnerUid(port);
       if (ownerUid !== null && ownerUid !== ourUid) {
         log.warn(
-          `[bootstrap] port ${port} hosts a laqrumcode DB owned by uid ${ownerUid} ` +
+          `[bootstrap] port ${port} hosts a sould DB owned by uid ${ownerUid} ` +
             `(we are uid ${ourUid}) — refusing to connect to another user's graph (GH #13).`,
         );
         continue;
@@ -1353,7 +1353,7 @@ export async function findExistingLaqrumcodeSurreal(
         // only adopt it if we hold a live pid file for our own managed surreal.
         if (ourLivePid === null) {
           log.warn(
-            `[bootstrap] port ${port} hosts a laqrumcode DB but its owner UID could ` +
+            `[bootstrap] port ${port} hosts a sould DB but its owner UID could ` +
               `not be determined and we hold no pid file for it — skipping to avoid ` +
               `cross-user attach (GH #13).`,
           );
@@ -1372,7 +1372,7 @@ export async function findExistingLaqrumcodeSurreal(
     }
 
     log.info(
-      `[bootstrap] found existing laqrumcode SurrealDB at ${url}` +
+      `[bootstrap] found existing sould SurrealDB at ${url}` +
         (pid !== null ? ` (managed pid=${pid})` : ` (external — not managing lifecycle)`) +
         ` — auth user '${winner.user}'`,
     );
@@ -1492,7 +1492,7 @@ function loadManifest(pluginDir: string): Manifest {
 }
 
 /** The historical single-user managed SurrealDB port. Kept as a named constant
- *  because it's also the legacy candidate that {@link findExistingLaqrumcodeSurreal}
+ *  because it's also the legacy candidate that {@link findExistingSouldSurreal}
  *  must probe (gated by the owner guard) so an upgrading single-user install's
  *  data is still discovered. */
 export const LEGACY_MANAGED_SURREAL_PORT = 18765;
@@ -1531,7 +1531,7 @@ function fnv1a32(s: string): number {
  *  collided with the 1st user's. We derive a per-user port by offsetting into
  *  the managed-SurrealDB window (MANAGED_SURREAL_PORT_RANGE wide). Two different
  *  users almost never land on the same port; even if they did, the process-owner
- *  guard in findExistingLaqrumcodeSurreal prevents cross-user adoption.
+ *  guard in findExistingSouldSurreal prevents cross-user adoption.
  *
  *  E5 (multi-OS-user Windows host): the prior code returned the FLAT legacy
  *  18765 for EVERY Windows account (getuid===null), so two users on one Windows
@@ -1542,13 +1542,13 @@ function fnv1a32(s: string): number {
  *  on the SAME base+range as the POSIX path so the result stays inside the
  *  managed-SurrealDB window [18765, 28764].
  *
- *  - LAQRUMCODE_SURREAL_PORT override always wins (explicit operator intent).
+ *  - SOULD_SURREAL_PORT override always wins (explicit operator intent).
  *  - POSIX: 18765 + (getuid() % RANGE).
  *  - Windows / no getuid: 18765 + (fnv1a32(os.userInfo().username) % RANGE).
  *  - Degenerate (no uid AND no username): flat 18765 — the only safe choice;
  *    isolation then leans on the per-install cred + process-owner guard. */
 export function pickPort(): number {
-  const env = Number(process.env.LAQRUMCODE_SURREAL_PORT);
+  const env = Number(process.env.SOULD_SURREAL_PORT);
   if (Number.isFinite(env) && env > 0) return env;
   const uid = typeof process.getuid === "function" ? process.getuid() : null;
   if (uid !== null) {
@@ -1567,7 +1567,7 @@ export function pickPort(): number {
  * model, and a managed SurrealDB child process. Returns the URL the MCP server
  * should connect to (either the managed child or SURREAL_URL override).
  *
- * Skips bootstrap entirely when LAQRUMCODE_SKIP_BOOTSTRAP=1 is set.
+ * Skips bootstrap entirely when SOULD_SKIP_BOOTSTRAP=1 is set.
  * Skips the SurrealDB child when SURREAL_URL points at an external server.
  */
 export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult> {
@@ -1650,14 +1650,14 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
   //  1. A previous MCP's detached SurrealDB child is still alive on the
   //     managed port — Option A's keystone. Plugin updates / MCP crashes
   //     don't lose the DB; new MCP attaches to the surviving instance.
-  //  2. The user has an existing laqrumcode SurrealDB elsewhere (e.g. Docker
+  //  2. The user has an existing sould SurrealDB elsewhere (e.g. Docker
   //     on the historical port 8000). Reusing it preserves their data
   //     instead of silently spawning a duplicate that splits writes.
-  // Both cases are fingerprint-checked (laqrumcode-specific tables present)
+  // Both cases are fingerprint-checked (sould-specific tables present)
   // so we never accidentally connect to an unrelated SurrealDB on the same
   // machine — e.g., a trading bot's DB. SURREAL_URL still takes precedence
   // and is handled in the surrealUrlOverride branch above.
-  const existing = await findExistingLaqrumcodeSurreal(
+  const existing = await findExistingSouldSurreal(
     input.cacheDir,
     port,
     input.surrealUser,
@@ -1702,7 +1702,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
     };
   }
 
-  // Fresh managed spawn (no existing laqrumcode DB found). Phase 2: drop the
+  // Fresh managed spawn (no existing sould DB found). Phase 2: drop the
   // root:root default — generate (or reuse a persisted) per-user credential
   // and spawn the child with it. getOrCreateManagedCred is idempotent, so if a
   // cred file already exists (e.g. a prior managed child that has since died)
@@ -1744,7 +1744,7 @@ export async function bootstrap(input: BootstrapInput): Promise<BootstrapResult>
  *  plugin updates, Claude Code restarts, etc.).
  *
  *  Pass { force: true } to actually SIGTERM the child — used by tests and any
- *  future "laqrumcode stop" CLI command that explicitly tears everything down. */
+ *  future "sould stop" CLI command that explicitly tears everything down. */
 export function shutdownManagedSurreal(opts?: { force?: boolean }): void {
   // C1: signal the supervisor that any subsequent child 'exit'/'error' is
   // INTENTIONAL — onManagedChildExit early-returns on this flag, so we never

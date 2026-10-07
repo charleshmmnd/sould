@@ -17,7 +17,7 @@ function isPathObservingTool(toolName) {
     if (PATH_OBSERVING_TOOLS.includes(toolName))
         return true;
     // MCP-routed tool names look like `mcp__<plugin>__<name>` — match any
-    // recall variant so laqrumcode's own and any forked recall tool count.
+    // recall variant so sould's own and any forked recall tool count.
     return toolName.includes("recall");
 }
 /** Extract path-shaped substrings from tool result text. Two patterns:

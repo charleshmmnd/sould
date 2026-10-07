@@ -14,7 +14,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { SurrealStore } from "../src/engine/surreal.js";
 
 const SKIP = process.env.SKIP_INTEGRATION === "1";
-const TEST_NS = "laqrum_test";
+const TEST_NS = "sould_test";
 const TEST_DB = `tier1_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 let store: SurrealStore;
 

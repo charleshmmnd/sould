@@ -2,9 +2,9 @@
  * Extensible gate registry.
  *
  * Gates are PreToolUse checks that can deny tool calls based on profile,
- * tool type, and context. Three built-in gates ship with laqrumcode
+ * tool type, and context. Three built-in gates ship with sould
  * (config-protection, edit-gate, bash-gate). Users add arbitrary gates
- * via ~/.laqrumcode/gates.json — no code changes required.
+ * via ~/.sould/gates.json — no code changes required.
  *
  * The registry runs all active gates in priority order (lowest first)
  * on each PreToolUse invocation. First deny wins.
@@ -69,7 +69,7 @@ export function makeDenyResponse(gateId, message) {
         hookSpecificOutput: {
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
-            permissionDecisionReason: `${TIER0_PREFIX}laqrumcode/${gateId}: ${message}`,
+            permissionDecisionReason: `${TIER0_PREFIX}sould/${gateId}: ${message}`,
         },
     };
 }
@@ -89,7 +89,7 @@ function registerBuiltinGates() {
                 return null;
             return makeDenyResponse("config-protection", `editing ${filePath} is blocked under the current hook profile. ` +
                 `Lint/format configs should not be weakened to make code pass — fix the code instead. ` +
-                `Set LAQRUMCODE_ALLOW_CONFIG_EDIT=1 to override (and restart the daemon).`);
+                `Set SOULD_ALLOW_CONFIG_EDIT=1 to override (and restart the daemon).`);
         },
     });
     registerGate({
@@ -122,7 +122,7 @@ function registerBuiltinGates() {
     });
 }
 function loadConfigGates() {
-    const configPath = join(homedir(), ".laqrumcode", "gates.json");
+    const configPath = join(homedir(), ".sould", "gates.json");
     if (!existsSync(configPath))
         return;
     try {

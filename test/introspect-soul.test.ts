@@ -11,7 +11,7 @@ const longText = "A lesson that runs well past three hundred characters. " + "de
 
 function makeState(soul: Record<string, unknown> | null) {
   const queryFirst = vi.fn().mockImplementation(async (sql: string) => {
-    if (/FROM soul:laqrumbrain/.test(sql)) return soul ? [soul] : [];
+    if (/FROM soul:souldbrain/.test(sql)) return soul ? [soul] : [];
     return [];
   });
   const state: Partial<GlobalPluginState> = {
@@ -24,7 +24,7 @@ function makeState(soul: Record<string, unknown> | null) {
 describe("introspect soul action", () => {
   it("prints every section in full and the ledger with removed/added lines", async () => {
     const soul = {
-      id: "soul:laqrumbrain", agent_id: "laqrumbrain",
+      id: "soul:souldbrain", agent_id: "souldbrain",
       working_style: [longText, "Second style entry"],
       earned_values: [{ value: "Done means live", grounded_in: "a palette fix that never shipped" }],
       self_observations: ["Absence from my own channels is not absence from his world"],
@@ -39,7 +39,7 @@ describe("introspect soul action", () => {
     const def = createIntrospectToolDef(state as GlobalPluginState, session as SessionState);
     const res = await def.execute("t", { action: "soul" } as any);
     const text = res.content.map(c => c.text).join("\n");
-    expect(text).toContain("SOUL DOCUMENT (soul:laqrumbrain)");
+    expect(text).toContain("SOUL DOCUMENT (soul:souldbrain)");
     expect(text).toContain("WORKING STYLE (2)");
     expect(text).toContain(longText);
     expect(text).toContain("learned from: a palette fix that never shipped");

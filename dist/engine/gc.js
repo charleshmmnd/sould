@@ -160,7 +160,7 @@ const STRING_BACKPOINTERS = [
 ];
 /** Resolve the gc-backups directory under the configured cache dir. */
 function gcBackupDir(state) {
-    const cacheDir = state.config?.paths?.cacheDir ?? join(homedir(), ".laqrumcode", "cache");
+    const cacheDir = state.config?.paths?.cacheDir ?? join(homedir(), ".sould", "cache");
     return join(cacheDir, "gc-backups");
 }
 /** A filename-safe slug of the reason for the snapshot filename. */
@@ -379,7 +379,7 @@ export async function gcHardDelete(state, table, ids, opts) {
     // =====================================================================
     const targetRows = await store.queryFirst(`SELECT * FROM ${table} WHERE id IN [${idList}]`);
     const snapshotLines = [];
-    snapshotLines.push(`-- laqrumcode gcHardDelete snapshot`);
+    snapshotLines.push(`-- sould gcHardDelete snapshot`);
     snapshotLines.push(`-- reason: ${reason}`);
     snapshotLines.push(`-- table: ${table}`);
     snapshotLines.push(`-- ids: ${idStrings.join(", ")}`);
@@ -570,7 +570,7 @@ export async function gcSweepOrphanedEdges(state, opts = {}) {
     const perTable = {};
     const baselineLive = {};
     const snapshotLines = [
-        `-- laqrumcode gcSweepOrphanedEdges snapshot`,
+        `-- sould gcSweepOrphanedEdges snapshot`,
         `-- reason: ${reason}`,
         `-- generated_at: ${new Date().toISOString()}`,
         `-- detector: ${ORPHAN_PRED} (absent endpoint record)`,

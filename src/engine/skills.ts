@@ -6,7 +6,7 @@
  * Next time a similar task is requested, inject the proven procedure as context.
  * Skills earn success/failure counts from outcomes — RL-like reinforcement.
  *
- * Ported from laqrumbrain — takes SurrealStore/EmbeddingService as params.
+ * Ported from souldbrain — takes SurrealStore/EmbeddingService as params.
  */
 
 import type { SurrealStore } from "./surreal.js";
@@ -46,7 +46,7 @@ export interface Skill {
  * embeddings are close. Without the name guard, long procedural-skill bodies
  * routinely cleared the 0.82 cosine threshold and unrelated skills nuked each
  * other (verified 2026-05-17: dockex-docker-build had wrongly deactivated
- * laqrumcode-health, extract-pdf-gems, and laqrumcode-backup-semantic).
+ * sould-health, extract-pdf-gems, and sould-backup-semantic).
  */
 export async function supersedeOldSkills(
   newSkillId: string,

@@ -1,6 +1,6 @@
 /**
  * Core memory management tool — CRUD on always-loaded directives.
- * Ported from laqrumbrain with SurrealStore injection.
+ * Ported from souldbrain with SurrealStore injection.
  */
 import { Type } from "@sinclair/typebox";
 import { stripStructuralTags } from "../sanitize.js";

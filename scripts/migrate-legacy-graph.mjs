@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Legacy graph migrator — copy a previous-brand SurrealDB memory graph into the
- * `laqrum` namespace that laqrumcode expects. Use this ONLY when moving an
+ * `sould` namespace that sould expects. Use this ONLY when moving an
  * existing graph from a pre-rebrand install; fresh installs need nothing.
  *
  * CONTENT-SAFE BY DESIGN. Every content table (memory, concept, skill, turn,
@@ -36,16 +36,16 @@
  * first — otherwise it re-seeds the destination as you copy.
  *
  * Assumes SRC and DST share the same schema version (a rebrand, not a schema
- * change). Env-driven:
+ * change). Env-driven (2026-10-07: used for laqrum -> sould; 2026-07-09: kong -> laqrum):
  *   LEGACY_BRAND=<old prefix>   # REQUIRED — the brand prefix you renamed FROM
- *   NEW_BRAND=laqrum            # default: laqrum
+ *   NEW_BRAND=sould             # default: sould
  *   SRC_URL=ws://127.0.0.1:8000/rpc  SRC_NS=<LEGACY_BRAND>
  *   DST_URL=ws://127.0.0.1:8000/rpc  DST_NS=<NEW_BRAND>
- *   SURREAL_DB=memory  SURREAL_USER=root  SURREAL_PASS=root  [BATCH=500] [DRY_RUN=1]
+ *   SURREAL_DB=memory  SRC_USER/SRC_PASS and DST_USER/DST_PASS (or SURREAL_USER/PASS for both)  [BATCH=500] [DRY_RUN=1]
  *   node scripts/migrate-legacy-graph.mjs
  *
  * SRC and DST may be the same server (two namespaces) or two different servers
- * (e.g. an old pre-rebrand daemon → a fresh laqrumcode daemon).
+ * (e.g. an old pre-rebrand daemon → a fresh sould daemon).
  */
 import { Surreal } from "surrealdb";
 import { readFileSync } from "node:fs";
@@ -55,7 +55,7 @@ import { dirname, resolve } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const LEGACY = process.env.LEGACY_BRAND;
-const NEW = process.env.NEW_BRAND || "laqrum";
+const NEW = process.env.NEW_BRAND || "sould";
 if (!LEGACY) {
   console.error(
     "LEGACY_BRAND is required — the brand prefix you renamed FROM (the source " +
@@ -74,6 +74,12 @@ const CFG = {
   db: process.env.SURREAL_DB || "memory",
   user: SCRIPT_CRED.user,
   pass: SCRIPT_CRED.pass,
+  // 2026-10-07: source and destination may be two servers with two managed
+  // users (laqrum_<uid> on the old store, sould_<uid> on the fresh one).
+  srcUser: process.env.SRC_USER || SCRIPT_CRED.user,
+  srcPass: process.env.SRC_PASS || SCRIPT_CRED.pass,
+  dstUser: process.env.DST_USER || SCRIPT_CRED.user,
+  dstPass: process.env.DST_PASS || SCRIPT_CRED.pass,
   batch: Math.max(1, Number(process.env.BATCH || 500)),
   dryRun: process.env.DRY_RUN === "1",
 };
@@ -100,16 +106,16 @@ function transform(rec) {
   return out;
 }
 
-async function connect(url, ns) {
+async function connect(url, ns, username, password) {
   const db = new Surreal();
   await db.connect(url);
-  await db.signin({ username: CFG.user, password: CFG.pass });
+  await db.signin({ username, password });
   await db.use({ namespace: ns, database: CFG.db });
   return db;
 }
 
-const src = await connect(CFG.srcUrl, CFG.srcNs);
-const dst = await connect(CFG.dstUrl, CFG.dstNs);
+const src = await connect(CFG.srcUrl, CFG.srcNs, CFG.srcUser, CFG.srcPass);
+const dst = await connect(CFG.dstUrl, CFG.dstNs, CFG.dstUser, CFG.dstPass);
 console.error(`[migrate] ${CFG.srcUrl} ns=${CFG.srcNs} → ${CFG.dstUrl} ns=${CFG.dstNs} db=${CFG.db} batch=${CFG.batch}${CFG.dryRun ? " (DRY RUN)" : ""}`);
 
 // Ensure the destination schema exists (idempotent). Prefer the compiled copy.

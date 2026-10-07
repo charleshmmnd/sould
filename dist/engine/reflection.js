@@ -6,7 +6,7 @@
  * generates a structured reflection via the configured LLM, stored as high-importance memory.
  * Retrieved when similar situations arise in future sessions.
  *
- * Ported from laqrumbrain — takes SurrealStore/EmbeddingService as params.
+ * Ported from souldbrain — takes SurrealStore/EmbeddingService as params.
  */
 import { swallow, safeId } from "./errors.js";
 import { cosineSimilarity } from "./graph-context.js";

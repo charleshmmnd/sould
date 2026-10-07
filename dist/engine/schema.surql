@@ -1,5 +1,5 @@
--- LaqrumBrain conversation graph schema
--- Run against ns:laqrum db:memory
+-- Sould conversation graph schema (lineage: LaqrumBrain, LaqrumCode)
+-- Run against ns:sould db:memory
 -- Aligned with 5-pillar model: Agent, Project, Task, Artifact, Concept
 
 -- ============================================================
@@ -790,7 +790,7 @@ DEFINE FIELD IF NOT EXISTS last_engaged ON memory TYPE option<datetime>;
 DEFINE INDEX IF NOT EXISTS memory_surface_idx ON memory FIELDS surfaceable, next_surface_at;
 DEFINE FIELD IF NOT EXISTS surface_outcome ON memory TYPE option<string>;
 
--- Soul: graduated identity document (singleton soul:laqrumbrain)
+-- Soul: graduated identity document (singleton soul:souldbrain)
 DEFINE TABLE IF NOT EXISTS soul SCHEMAFULL;
 DEFINE FIELD IF NOT EXISTS agent_id ON soul TYPE string;
 DEFINE FIELD IF NOT EXISTS working_style ON soul TYPE array<string>;

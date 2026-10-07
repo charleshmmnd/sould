@@ -8,14 +8,14 @@
  * BM25) — the hybrid. Reports MRR + Recall@K for dense-only vs hybrid, overall
  * and stratified by term rarity (where the hybrid should help most).
  *
- * Standalone: loads BGE-M3 directly (no laqrumcode daemon needed) + talks to
+ * Standalone: loads BGE-M3 directly (no sould daemon needed) + talks to
  * SurrealDB. Deterministic sampling (no RNG) so re-runs are comparable.
  *   N=120 K=10 node scripts/hybrid-recall-benchmark.mjs
  */
 import { getLlama } from "node-llama-cpp";
 import { Surreal } from "surrealdb";
 
-const MODEL = process.env.EMBED_MODEL_PATH || "/home/zero/.laqrumcode/cache/models/bge-m3-Q4_K_M.gguf";
+const MODEL = process.env.EMBED_MODEL_PATH || "/home/zero/.sould/cache/models/bge-m3-Q4_K_M.gguf";
 const N = Number(process.env.N || 120);
 const K = Number(process.env.K || 10);
 const POOL = 200; // candidate depth per arm before fusion

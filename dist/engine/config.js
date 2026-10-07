@@ -10,11 +10,11 @@ export function parsePluginConfig(raw) {
     const thresholds = (raw?.thresholds ?? {});
     const paths = (raw?.paths ?? {});
     const cacheDir = (typeof paths.cacheDir === "string" && paths.cacheDir ? paths.cacheDir : null) ??
-        (process.env.LAQRUMCODE_CACHE_DIR || null) ??
-        join(homedir(), ".laqrumcode", "cache");
+        (process.env.SOULD_CACHE_DIR || null) ??
+        join(homedir(), ".sould", "cache");
     const dataDir = (typeof paths.dataDir === "string" && paths.dataDir ? paths.dataDir : null) ??
-        (process.env.LAQRUMCODE_DATA_DIR || null) ??
-        join(homedir(), ".laqrumcode", "data");
+        (process.env.SOULD_DATA_DIR || null) ??
+        join(homedir(), ".sould", "data");
     const surrealBinPath = (typeof paths.surrealBinPath === "string" && paths.surrealBinPath ? paths.surrealBinPath : null) ??
         (process.env.SURREAL_BIN_PATH || null);
     // Priority: plugin config > env vars > defaults
@@ -42,7 +42,7 @@ export function parsePluginConfig(raw) {
             // (and a half-set credential should fail loudly, not silently fall back).
             credsExplicit: Boolean((typeof surreal.user === "string" && surreal.user) || process.env.SURREAL_USER ||
                 (typeof surreal.pass === "string" && surreal.pass) || process.env.SURREAL_PASS),
-            ns: (typeof surreal.ns === "string" && surreal.ns ? surreal.ns : null) ?? (process.env.SURREAL_NS || null) ?? "laqrum",
+            ns: (typeof surreal.ns === "string" && surreal.ns ? surreal.ns : null) ?? (process.env.SURREAL_NS || null) ?? "sould",
             db: (typeof surreal.db === "string" && surreal.db ? surreal.db : null) ?? (process.env.SURREAL_DB || null) ?? "memory",
         },
         embedding: {
@@ -54,7 +54,7 @@ export function parsePluginConfig(raw) {
         },
         reranker: (() => {
             const reranker = (raw?.reranker ?? {});
-            const enabled = process.env.LAQRUMCODE_RERANKER_DISABLED !== "1";
+            const enabled = process.env.SOULD_RERANKER_DISABLED !== "1";
             const modelPath = process.env.RERANKER_MODEL_PATH ??
                 (typeof reranker.modelPath === "string"
                     ? reranker.modelPath

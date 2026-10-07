@@ -5,12 +5,12 @@
  *   - ensureDaemon only resolved a socketPath and gated readiness on
  *     existsSync(socketPath) — meaningless on Windows, where the daemon binds
  *     TCP-only and no socket file ever exists. Result: daemon unreachable on
- *     100% of Windows installs, and the LAQRUMCODE_DAEMON_TRANSPORT=tcp opt-in
+ *     100% of Windows installs, and the SOULD_DAEMON_TRANSPORT=tcp opt-in
  *     was dead because the client never set tcpHost/tcpPort on IpcClient.
  *
  * The fix makes the client mirror the daemon's transport selection
  * (daemon/index.ts: `useUds = TRANSPORT !== "tcp" && platform !== "win32"`,
- * port = LAQRUMCODE_DAEMON_PORT ?? DEFAULT_DAEMON_TCP_PORT, host 127.0.0.1) and
+ * port = SOULD_DAEMON_PORT ?? DEFAULT_DAEMON_TCP_PORT, host 127.0.0.1) and
  * threads tcpHost/tcpPort into IpcClient at every construction site.
  *
  * These tests use REAL sockets (node:net) standing in for the daemon — no
@@ -93,21 +93,21 @@ function startFakeDaemon(opts: { port?: number; socketPath?: string }): Promise<
 describe("R6: resolveTransport mirrors the daemon's useUds decision", () => {
   it("picks tcp on win32 regardless of env", () => {
     expect(resolveTransport({}, "win32")).toBe("tcp");
-    expect(resolveTransport({ LAQRUMCODE_DAEMON_TRANSPORT: "tcp" }, "win32")).toBe("tcp");
+    expect(resolveTransport({ SOULD_DAEMON_TRANSPORT: "tcp" }, "win32")).toBe("tcp");
     // Even an explicit non-tcp value can't give a win32 box a Unix socket.
-    expect(resolveTransport({ LAQRUMCODE_DAEMON_TRANSPORT: "uds" }, "win32")).toBe("tcp");
+    expect(resolveTransport({ SOULD_DAEMON_TRANSPORT: "uds" }, "win32")).toBe("tcp");
   });
 
-  it("picks tcp when LAQRUMCODE_DAEMON_TRANSPORT=tcp on any non-windows platform", () => {
-    expect(resolveTransport({ LAQRUMCODE_DAEMON_TRANSPORT: "tcp" }, "linux")).toBe("tcp");
-    expect(resolveTransport({ LAQRUMCODE_DAEMON_TRANSPORT: "tcp" }, "darwin")).toBe("tcp");
+  it("picks tcp when SOULD_DAEMON_TRANSPORT=tcp on any non-windows platform", () => {
+    expect(resolveTransport({ SOULD_DAEMON_TRANSPORT: "tcp" }, "linux")).toBe("tcp");
+    expect(resolveTransport({ SOULD_DAEMON_TRANSPORT: "tcp" }, "darwin")).toBe("tcp");
   });
 
   it("picks uds by default on linux/macOS", () => {
     expect(resolveTransport({}, "linux")).toBe("uds");
     expect(resolveTransport({}, "darwin")).toBe("uds");
     // A non-"tcp" value is treated as uds (matches the daemon's strict === check).
-    expect(resolveTransport({ LAQRUMCODE_DAEMON_TRANSPORT: "" }, "linux")).toBe("uds");
+    expect(resolveTransport({ SOULD_DAEMON_TRANSPORT: "" }, "linux")).toBe("uds");
   });
 });
 
@@ -126,39 +126,39 @@ describe("R6: resolveTcpPort matches daemon/index.ts port logic", () => {
     expect(inWindow).toBe(true);
   });
 
-  it("honors a valid LAQRUMCODE_DAEMON_PORT override (verbatim, no per-user offset)", () => {
-    expect(resolveTcpPort({ LAQRUMCODE_DAEMON_PORT: "23456" })).toBe(23456);
+  it("honors a valid SOULD_DAEMON_PORT override (verbatim, no per-user offset)", () => {
+    expect(resolveTcpPort({ SOULD_DAEMON_PORT: "23456" })).toBe(23456);
   });
 
   it("ignores an invalid/zero/negative override and falls through to the per-user derivation", () => {
     // Invalid overrides no longer pin the flat default; they fall through to the
     // per-user port (identical to the no-override default on this host).
     const perUser = resolveTcpPort({});
-    expect(resolveTcpPort({ LAQRUMCODE_DAEMON_PORT: "0" })).toBe(perUser);
-    expect(resolveTcpPort({ LAQRUMCODE_DAEMON_PORT: "-1" })).toBe(perUser);
-    expect(resolveTcpPort({ LAQRUMCODE_DAEMON_PORT: "notanumber" })).toBe(perUser);
+    expect(resolveTcpPort({ SOULD_DAEMON_PORT: "0" })).toBe(perUser);
+    expect(resolveTcpPort({ SOULD_DAEMON_PORT: "-1" })).toBe(perUser);
+    expect(resolveTcpPort({ SOULD_DAEMON_PORT: "notanumber" })).toBe(perUser);
   });
 });
 
 // ── ensureDaemon returns the correct endpoint shape per transport ─────────
 
-describe("R6: ensureDaemon returns a TCP endpoint under LAQRUMCODE_DAEMON_TRANSPORT=tcp", () => {
+describe("R6: ensureDaemon returns a TCP endpoint under SOULD_DAEMON_TRANSPORT=tcp", () => {
   let fake: { server: Server; port: number } | null = null;
-  const prevTransport = process.env.LAQRUMCODE_DAEMON_TRANSPORT;
-  const prevPort = process.env.LAQRUMCODE_DAEMON_PORT;
+  const prevTransport = process.env.SOULD_DAEMON_TRANSPORT;
+  const prevPort = process.env.SOULD_DAEMON_PORT;
 
   afterEach(async () => {
     if (fake) { await new Promise<void>((r) => fake!.server.close(() => r())); fake = null; }
-    if (prevTransport === undefined) delete process.env.LAQRUMCODE_DAEMON_TRANSPORT;
-    else process.env.LAQRUMCODE_DAEMON_TRANSPORT = prevTransport;
-    if (prevPort === undefined) delete process.env.LAQRUMCODE_DAEMON_PORT;
-    else process.env.LAQRUMCODE_DAEMON_PORT = prevPort;
+    if (prevTransport === undefined) delete process.env.SOULD_DAEMON_TRANSPORT;
+    else process.env.SOULD_DAEMON_TRANSPORT = prevTransport;
+    if (prevPort === undefined) delete process.env.SOULD_DAEMON_PORT;
+    else process.env.SOULD_DAEMON_PORT = prevPort;
   });
 
   it("fast-path reaches an existing TCP daemon and returns {tcpHost,tcpPort}", async () => {
     fake = await startFakeDaemon({});
-    process.env.LAQRUMCODE_DAEMON_TRANSPORT = "tcp";
-    process.env.LAQRUMCODE_DAEMON_PORT = String(fake.port);
+    process.env.SOULD_DAEMON_TRANSPORT = "tcp";
+    process.env.SOULD_DAEMON_PORT = String(fake.port);
 
     const ep = await ensureDaemon({ log: SILENT_LOG, readyTimeoutMs: 3_000 });
 
@@ -171,20 +171,20 @@ describe("R6: ensureDaemon returns a TCP endpoint under LAQRUMCODE_DAEMON_TRANSP
 describe("R6: ensureDaemon returns a UDS endpoint in default (linux/macOS) mode", () => {
   let fake: { server: Server; port: number } | null = null;
   let dir: string | null = null;
-  const prevTransport = process.env.LAQRUMCODE_DAEMON_TRANSPORT;
+  const prevTransport = process.env.SOULD_DAEMON_TRANSPORT;
 
   afterEach(async () => {
     if (fake) { await new Promise<void>((r) => fake!.server.close(() => r())); fake = null; }
     if (dir) { try { rmSync(dir, { recursive: true, force: true }); } catch {} dir = null; }
-    if (prevTransport === undefined) delete process.env.LAQRUMCODE_DAEMON_TRANSPORT;
-    else process.env.LAQRUMCODE_DAEMON_TRANSPORT = prevTransport;
+    if (prevTransport === undefined) delete process.env.SOULD_DAEMON_TRANSPORT;
+    else process.env.SOULD_DAEMON_TRANSPORT = prevTransport;
   });
 
   it("fast-path reaches an existing Unix socket and returns no tcpPort", async () => {
     // Skip on win32 (no Unix sockets there — and resolveTransport would force
     // tcp anyway, which is its own test above).
     if (process.platform === "win32") return;
-    delete process.env.LAQRUMCODE_DAEMON_TRANSPORT;
+    delete process.env.SOULD_DAEMON_TRANSPORT;
     dir = mkdtempSync(join(tmpdir(), "kc-r6-uds-"));
     const socketPath = join(dir, "d.sock");
     fake = await startFakeDaemon({ socketPath });
@@ -251,13 +251,13 @@ const itDaemon = (name: string, fn: () => Promise<void>, timeout?: number) =>
   it(name, async () => { if (!DAEMON_AVAILABLE) return; await fn(); }, timeout);
 
 describe("R6 (gated): spawning the real daemon in tcp mode is reachable over TCP", () => {
-  const prevTransport = process.env.LAQRUMCODE_DAEMON_TRANSPORT;
-  const prevPort = process.env.LAQRUMCODE_DAEMON_PORT;
+  const prevTransport = process.env.SOULD_DAEMON_TRANSPORT;
+  const prevPort = process.env.SOULD_DAEMON_PORT;
   afterEach(() => {
-    if (prevTransport === undefined) delete process.env.LAQRUMCODE_DAEMON_TRANSPORT;
-    else process.env.LAQRUMCODE_DAEMON_TRANSPORT = prevTransport;
-    if (prevPort === undefined) delete process.env.LAQRUMCODE_DAEMON_PORT;
-    else process.env.LAQRUMCODE_DAEMON_PORT = prevPort;
+    if (prevTransport === undefined) delete process.env.SOULD_DAEMON_TRANSPORT;
+    else process.env.SOULD_DAEMON_TRANSPORT = prevTransport;
+    if (prevPort === undefined) delete process.env.SOULD_DAEMON_PORT;
+    else process.env.SOULD_DAEMON_PORT = prevPort;
   });
 
   itDaemon("ensureDaemon spawns/returns a TCP endpoint the client can handshake", async () => {
@@ -278,8 +278,8 @@ describe("R6 (gated): spawning the real daemon in tcp mode is reachable over TCP
       });
       probe.on("error", reject);
     });
-    process.env.LAQRUMCODE_DAEMON_TRANSPORT = "tcp";
-    process.env.LAQRUMCODE_DAEMON_PORT = String(port);
+    process.env.SOULD_DAEMON_TRANSPORT = "tcp";
+    process.env.SOULD_DAEMON_PORT = String(port);
     // Pass the resolved dist path explicitly: under vitest the module runs from
     // src/, so ensureDaemon's relative resolveDaemonScript() would point at the
     // non-existent src/daemon/index.js. Use the compiled daemon the gate located.

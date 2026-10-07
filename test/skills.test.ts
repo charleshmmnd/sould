@@ -182,8 +182,8 @@ describe("supersedeOldSkills", () => {
 
   // Regression test for the 2026-05-17 bug where supersedeOldSkills was
   // matching purely on cosine similarity and was nuking unrelated skills
-  // (dockex-docker-build wrongly deactivated laqrumcode-health, extract-pdf-gems,
-  // laqrumcode-backup-semantic). The fix requires name equality.
+  // (dockex-docker-build wrongly deactivated sould-health, extract-pdf-gems,
+  // sould-backup-semantic). The fix requires name equality.
   it("scopes the candidate query to name equality", async () => {
     const store = mockStore();
     store.queryFirst.mockResolvedValue([]);

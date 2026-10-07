@@ -5,7 +5,7 @@
  * cross-attention model. Ships dormant — auto-trains and activates when
  * enough retrieval outcome data accumulates (5000+ labeled pairs).
  *
- * Ported from laqrumbrain — uses SurrealStore instead of module-level DB.
+ * Ported from souldbrain — uses SurrealStore instead of module-level DB.
  */
 
 import {
@@ -132,17 +132,17 @@ function acquireTrainingLock(lockPath: string): (() => void) | null {
 }
 
 /**
- * Legacy default. Pre-0.x ACAN weights were written to ~/.laqrumbrain/acan_weights.json
- * back when this code lived in the laqrumbrain plugin. Existing user systems have
+ * Legacy default. Pre-0.x ACAN weights were written to ~/.souldbrain/acan_weights.json
+ * back when this code lived in the souldbrain plugin. Existing user systems have
  * ~2.7MB of trained weights at that path that we must not orphan.
  *
  * New code paths should pass a `weightsDir` argument (typically
- * `state.config.paths.cacheDir`, i.e. ~/.laqrumcode/cache). The legacy default
+ * `state.config.paths.cacheDir`, i.e. ~/.sould/cache). The legacy default
  * is kept here for un-passed callers so existing installs keep working until
  * the one-time forward-migration in maintenance.ts runs.
  */
-function getLaqrumDir(): string {
-  const dir = join(homedir(), ".laqrumbrain");
+function getSouldDir(): string {
+  const dir = join(homedir(), ".souldbrain");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -213,7 +213,7 @@ function saveWeights(weights: ACANWeights, path: string): void {
 
 export function initACAN(weightsDir?: string): boolean {
   _weightsDir = weightsDir;
-  const dir = weightsDir ?? getLaqrumDir();
+  const dir = weightsDir ?? getSouldDir();
   const path = join(dir, WEIGHTS_FILENAME);
   _weights = loadWeights(path);
   _active = _weights !== null;
@@ -242,7 +242,7 @@ export function isACANActive(): boolean {
 function maybeReloadWeights(): void {
   if (!_weights) return;
   if (_reloading) return; // mutex held — first caller is responsible
-  const dir = _weightsDir ?? getLaqrumDir();
+  const dir = _weightsDir ?? getSouldDir();
   const path = join(dir, WEIGHTS_FILENAME);
   // Track whether THIS invocation acquired the mutex. The outer catch must
   // only clear `_reloading` if we set it here — otherwise a transient FS
@@ -526,7 +526,7 @@ export async function checkACANReadiness(
 ): Promise<void> {
   if (!store) return;
   const threshold = trainingThreshold ?? TRAINING_THRESHOLD;
-  const dir = weightsDir ?? getLaqrumDir();
+  const dir = weightsDir ?? getSouldDir();
   const weightsPath = join(dir, WEIGHTS_FILENAME);
   const hasWeights = initACAN(weightsDir);
   const count = await getTrainingDataCount(store);

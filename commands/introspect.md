@@ -1,10 +1,10 @@
 ---
-description: Run diagnostics on the LaqrumCode memory database
+description: Run diagnostics on the Sould memory database
 argument-hint: "[status|count|verify|query]"
-allowed-tools: ["mcp__plugin_laqrumcode_laqrumcode__introspect"]
+allowed-tools: ["mcp__plugin_sould_sould__introspect"]
 ---
 
-Run diagnostics on the LaqrumCode memory database.
+Run diagnostics on the Sould memory database.
 
 Parse $ARGUMENTS for the action:
 - `status` (default if empty) — health overview with table counts and graduation progress

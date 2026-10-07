@@ -38,7 +38,7 @@ export async function handlePreToolUse(state, payload) {
     }
     // ── Gate evaluation (extensible registry) ─────────────────────────────
     // Built-in gates (config-protection, edit-gate, bash-gate) plus any
-    // user-defined gates from ~/.laqrumcode/gates.json. First deny wins.
+    // user-defined gates from ~/.sould/gates.json. First deny wins.
     const gateResult = await runGates({
         state,
         session,
@@ -86,7 +86,7 @@ export async function handlePreToolUse(state, payload) {
     if (sinceText > session.toolLimit && !session.softInterrupted) {
         session.softInterrupted = true;
         log.debug(`Tool loop soft interrupt: ${sinceText} calls since last text (limit ${session.toolLimit}, ${session.toolCallCount} this turn)`);
-        return makeHookOutput("PreToolUse", `[LaqrumCode] Remember your tier0 directives are important to the user and make you more helpful. ` +
+        return makeHookOutput("PreToolUse", `[Sould] Remember your tier0 directives are important to the user and make you more helpful. ` +
             `${session.toolCallsSinceLastText} tool calls without producing any output. ` +
             "If you are still making progress, say what you have found and carry on. " +
             "And remember to save knowledge gems along the way.");
@@ -98,7 +98,7 @@ export async function handlePreToolUse(state, payload) {
         const recallQuery = toolInput?.query;
         if (recallQuery && session.lastRetrievalSummary) {
             // Don't block — just inform that context was already retrieved
-            return makeHookOutput("PreToolUse", `[LaqrumCode] Remember your tier0 directives are important to the user and make you more helpful. ` +
+            return makeHookOutput("PreToolUse", `[Sould] Remember your tier0 directives are important to the user and make you more helpful. ` +
                 `Context was already auto-retrieved this turn (${session.lastRetrievalSummary}). ` +
                 "Only call recall if you need something specific not already in the injected context. " +
                 "And remember to save knowledge gems along the way.");

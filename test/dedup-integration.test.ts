@@ -45,7 +45,7 @@ import type { MemoryConfig } from "../src/engine/config.js";
 const SKIP = process.env.SKIP_INTEGRATION === "1";
 
 // Disable auto-drain so the test doesn't try to spawn headless Claude.
-process.env.LAQRUMCODE_AUTO_DRAIN = "0";
+process.env.SOULD_AUTO_DRAIN = "0";
 
 const TEST_NS = `kctest_dedup_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
 const TEST_DB = "dedup";

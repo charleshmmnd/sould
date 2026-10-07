@@ -31,7 +31,7 @@ import { resolveScriptCred } from "./surreal-cred.mjs";
 const SCRIPT_CRED = resolveScriptCred();
 const CFG = {
   url: process.env.SRC_URL || "ws://127.0.0.1:8000/rpc",
-  ns: process.env.SURREAL_NS || "laqrum",
+  ns: process.env.SURREAL_NS || "sould",
   db: process.env.SURREAL_DB || "memory",
   user: SCRIPT_CRED.user,
   pass: SCRIPT_CRED.pass,
