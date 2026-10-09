@@ -104,6 +104,16 @@ export declare function formatRelativeTime(ts: string): string;
 export declare function cosineSimilarity(a: number[], b: number[]): number;
 export declare function expandVagueQuery(query: string, session?: SessionState): string;
 export declare function reciprocalRankFusion(rankedLists: string[][], k?: number): Map<string, number>;
+/**
+ * True when a retrieved row is the prompt being answered, not past context:
+ * a turn stored in the last few seconds (the UserPromptSubmit ingest), a turn
+ * with no usable timestamp, or a turn whose text is the prompt itself.
+ */
+export declare function isEchoOfCurrentPrompt(r: {
+    table: string;
+    timestamp?: string;
+    text?: string;
+}, queryText: string, cutoffMs: number): boolean;
 export declare function deduplicateResults(ranked: ScoredResult[]): ScoredResult[];
 export declare function mmrReorder(ranked: ScoredResult[], lambda?: number): ScoredResult[];
 /** Context window assumed when a caller does not supply one. @internal */
@@ -141,6 +151,7 @@ export interface CoreBudgetResult {
  * so the loss has to be observable to somebody.
  */
 export declare function applyCoreBudgetVerbose(entries: CoreMemoryEntry[], budgetChars: number): CoreBudgetResult;
+export declare function ensureRecentTurns(contextNodes: ScoredResult[], session: SessionState, store: SurrealStore, count?: number): Promise<ScoredResult[]>;
 export interface GraphTransformParams {
     messages: AgentMessage[];
     session: SessionState;

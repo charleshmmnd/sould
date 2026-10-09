@@ -1007,6 +1007,24 @@ export function reciprocalRankFusion(rankedLists: string[][], k = 60): Map<strin
   return scores;
 }
 
+/**
+ * True when a retrieved row is the prompt being answered, not past context:
+ * a turn stored in the last few seconds (the UserPromptSubmit ingest), a turn
+ * with no usable timestamp, or a turn whose text is the prompt itself.
+ */
+export function isEchoOfCurrentPrompt(
+  r: { table: string; timestamp?: string; text?: string },
+  queryText: string,
+  cutoffMs: number,
+): boolean {
+  if (r.table !== "turn") return false;
+  const ts = parseDatetimeMs(r.timestamp) ?? 0;
+  if (ts <= 0 || ts >= cutoffMs) return true;
+  const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  const q = norm(queryText ?? "");
+  return q.length > 0 && norm(r.text ?? "") === q;
+}
+
 // ── Deduplication ──────────────────────────────────────────────────────────────
 
 export function deduplicateResults(ranked: ScoredResult[]): ScoredResult[] {
@@ -1323,7 +1341,7 @@ function buildSystemPromptSection(session: SessionState, tier0Entries: CoreMemor
 
 // ── Guaranteed recent turns from previous sessions ─────────────────────────────
 
-async function ensureRecentTurns(
+export async function ensureRecentTurns(
   contextNodes: ScoredResult[],
   session: SessionState,
   store: SurrealStore,
@@ -1336,8 +1354,15 @@ async function ensureRecentTurns(
         : await store.getPreviousSessionTurns(session.sessionId, count);
       session._prevTurnsPrefetch = undefined;
     }
+    // Continuity, not relevance: the last turns of the previous session carry a
+    // fixed 0.70 score whatever the topic, so they belong on the first prompt
+    // only. Re-sent on every prompt they showed up as "70% relevant" to prompts
+    // about something else entirely (observed 2026-10-09). The injected copy
+    // stays in the conversation; PostCompact re-arms this after compaction.
+    if (session._prevTurnsDelivered) return contextNodes;
     const recentTurns = session._cachedPrevTurns;
     if (recentTurns.length === 0) return contextNodes;
+    session._prevTurnsDelivered = true;
     const existingTexts = new Set(contextNodes.map(n => (n.text ?? "").slice(0, 100)));
     const guaranteed: ScoredResult[] = recentTurns
       .filter(t => !existingTexts.has((t.text ?? "").slice(0, 100)))
@@ -2189,7 +2214,7 @@ async function graphTransformInner(
       store.vectorSearch(queryVec, session.sessionId, vectorSearchLimits, isACANActive(), session.projectId || undefined),
       store.tagBoostedConcepts(queryText, queryVec, 10).catch(e => { swallow.warn("graph-context:tagBoost", e); return [] as VectorSearchResult[]; }),
       (typeof store.fulltextSearch === "function"
-        ? store.fulltextSearch(queryText, { concept: 10, turn: 8, memory: 8, artifact: 5, skill: 5 })
+        ? store.fulltextSearch(queryText, { concept: 10, turn: 8, memory: 8, artifact: 5, skill: 5 }, queryVec)
         : Promise.resolve([] as VectorSearchResult[])
       ).catch(e => { swallow.warn("graph-context:fulltext", e); return [] as VectorSearchResult[]; }),
     ]);
@@ -2206,20 +2231,28 @@ async function graphTransformInner(
     // rank the just-typed prompt's embedding ~60% to itself and echo back as
     // "Past Conversation," wasting tokens. 5-second cutoff excludes only the
     // very recent stores; legitimate older context still surfaces.
+    // The filter applies to EVERY arm. Until 2026-10-09 only the vector arm had
+    // it, so the BM25 arm (which matches the prompt's own words exactly) put the
+    // just-typed prompt back as the top "load-bearing" past turn on every prompt.
     const recentCutoffMs = Date.now() - 5_000;
-    const vectorResults = vectorResultsRaw.filter((r) => {
-      if (r.table !== "turn") return true;
-      const ts = parseDatetimeMs(r.timestamp) ?? 0;
-      return ts > 0 && ts < recentCutoffMs;
-    });
+    const vectorResults = vectorResultsRaw.filter((r) => !isEchoOfCurrentPrompt(r, queryText, recentCutoffMs));
     // Merge the three retrieval arms (dense vector + keyword tag + lexical BM25),
     // de-duplicated by id. The BM25 (fulltext) arm adds RECALL: exact-term /
     // rare-token / code-identifier rows the dense embedding missed entirely.
     // String(id) keys so RecordId-vs-string can't silently break dedup/fusion.
     const seenIds = new Set(vectorResults.map(r => String(r.id)));
-    const uniqueTagResults = tagResults.filter(r => !seenIds.has(String(r.id)));
+    const uniqueTagResults = tagResults
+      .filter(r => !isEchoOfCurrentPrompt(r, queryText, recentCutoffMs))
+      .filter(r => !seenIds.has(String(r.id)));
     for (const r of uniqueTagResults) seenIds.add(String(r.id));
-    const uniqueFtsResults = ftsResults.filter(r => !seenIds.has(String(r.id)));
+    // A lexical hit's `score` is raw BM25 (1 to 15). Downstream filters and
+    // scorers read `score` as cosine, so a BM25 row cleared MIN_COSINE and
+    // outranked every real match. Carry its dense cosine instead; RRF below
+    // still uses the BM25 order for seed selection.
+    const uniqueFtsResults = ftsResults
+      .filter(r => !isEchoOfCurrentPrompt(r, queryText, recentCutoffMs))
+      .filter(r => !seenIds.has(String(r.id)))
+      .map(r => ({ ...r, score: r.cosine ?? 0 }));
     const results = [...vectorResults, ...uniqueTagResults, ...uniqueFtsResults];
 
     // Graph neighbor expansion — RRF-fuse all THREE arms (dense vector + keyword

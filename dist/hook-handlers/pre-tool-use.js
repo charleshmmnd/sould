@@ -11,11 +11,57 @@ import { runGates } from "../engine/hooks/gate-registry.js";
 import { commitKnowledge } from "../engine/commit.js";
 import { countToolCallsSinceText, deriveTranscriptPath } from "../engine/transcript-reader.js";
 import { homedir } from "node:os";
+import { readdirSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 /** Tools that touch a file via an explicit `file_path` argument. The gate
  *  treats any of these as an "observation" of that path for the rest of
  *  the session, so a Read followed by an Edit in the same response is
  *  not blocked. 0.7.48 fix for the mid-response gating gap. */
 const FILE_AWARE_TOOLS = new Set(["Read", "Write", "Edit", "MultiEdit"]);
+/** Commands that check a push landed or check its CI run. */
+const PUSH_VERIFY_RE = /\bgit\s+ls-remote\b|\bgit\s+status\s+-sb\b|\bgit\s+rev-parse\s+(?:origin\/|@\{u\})|\bgh\s+run\s+(?:list|watch|view)\b/;
+const CI_VERIFY_RE = /\bgh\s+run\s+(?:list|watch|view)\b/;
+/** Directory a `git push` in `command` runs in: the last `cd <dir>` before it, else `cwd`. */
+export function pushRepoDir(command, cwd) {
+    const before = command.slice(0, Math.max(0, command.search(/git\s+push\b/)));
+    const cds = [...before.matchAll(/(?:^|[;&|]\s*)cd\s+("[^"]+"|'[^']+'|[^\s;&|]+)/g)];
+    if (cds.length === 0)
+        return cwd;
+    let dir = cds[cds.length - 1][1].replace(/^["']|["']$/g, "");
+    if (dir.startsWith("~"))
+        dir = join(homedir(), dir.slice(1));
+    return isAbsolute(dir) ? dir : resolve(cwd, dir);
+}
+function repoHasWorkflows(dir) {
+    try {
+        return readdirSync(join(dir, ".github", "workflows")).some((f) => /\.ya?ml$/.test(f));
+    }
+    catch {
+        return false;
+    }
+}
+/**
+ * Whether the Stop hook still owes a push reminder after this Bash command.
+ * `pending` is the current flag. A push leaves the reminder owed unless the
+ * same command already verifies after it; a later command clears it. A repo
+ * with GitHub Actions needs a `gh run` check, one without needs only proof the
+ * push landed (ls-remote, status -sb). The reminder used to fire on every push
+ * and blocked twice on 2026-10-09 after pushes already verified in repos with
+ * no workflows at all.
+ */
+export function pushReminderOwed(command, pending, hasWorkflows) {
+    const at = command.search(/git\s+push\b/);
+    if (at >= 0) {
+        const needsCi = hasWorkflows(command);
+        const after = command.slice(at);
+        const verified = needsCi ? CI_VERIFY_RE.test(after) : PUSH_VERIFY_RE.test(after);
+        return { owed: !verified, needsCi };
+    }
+    if (!pending.owed)
+        return pending;
+    const verified = pending.needsCi ? CI_VERIFY_RE.test(command) : PUSH_VERIFY_RE.test(command);
+    return verified ? { owed: false, needsCi: false } : pending;
+}
 export async function handlePreToolUse(state, payload) {
     const sessionId = payload.session_id ?? "default";
     const session = state.getSession(sessionId);
@@ -52,8 +98,11 @@ export async function handlePreToolUse(state, payload) {
     if (toolName === "Bash") {
         const toolInput = payload.tool_input;
         const command = toolInput?.command;
-        if (command && /git\s+push\b/.test(command)) {
-            session._pushDetected = true;
+        if (command) {
+            const cwd = payload.cwd ?? process.cwd();
+            const next = pushReminderOwed(command, { owed: session._pushDetected, needsCi: session._pushNeedsCi }, (cmd) => repoHasWorkflows(pushRepoDir(cmd, cwd)));
+            session._pushDetected = next.owed;
+            session._pushNeedsCi = next.needsCi;
         }
     }
     // Planning gate: nudge when the model is LOOPING — calling tools without

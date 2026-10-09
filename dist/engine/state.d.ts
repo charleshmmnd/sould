@@ -56,6 +56,8 @@ export declare class SessionState {
      *  next Read anyway. */
     observeFilePath(path: string): void;
     _pushDetected: boolean;
+    /** The pushed repo has GitHub Actions, so only a `gh run` check clears the reminder. */
+    _pushNeedsCi: boolean;
     /** Query vector from this turn's context retrieval — used to detect redundant recall calls. */
     lastQueryVec: number[] | null;
     /** Summary of what graphTransformContext injected — shown in planning gate. */
@@ -96,6 +98,8 @@ export declare class SessionState {
         tool_name?: string;
         timestamp: string;
     }[];
+    /** Previous-session turns already injected this session (cleared by PostCompact). */
+    _prevTurnsDelivered?: boolean;
     /** Prefetch promise for previous-session turns — fires at session start, awaited in ensureRecentTurns. */
     _prevTurnsPrefetch?: Promise<{
         role: string;

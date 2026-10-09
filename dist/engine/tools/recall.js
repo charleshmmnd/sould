@@ -6,7 +6,36 @@ import { Type } from "@sinclair/typebox";
 import { findRelevantSkills, formatSkillContext } from "../skills.js";
 import { swallow } from "../errors.js";
 import { stripStructuralTags } from "../sanitize.js";
-import { deduplicateResults, rerankResults } from "../graph-context.js";
+import { deduplicateResults, reciprocalRankFusion, rerankResults } from "../graph-context.js";
+/**
+ * Fuse the dense (vector) and lexical (BM25) arms for a deliberate recall.
+ *
+ * Dense-only recall missed exact names: on 2026-10-09 recall("Burbage") returned
+ * none of the three memories containing that word, because a proper name has
+ * almost no semantic signal. The lexical arm finds them; RRF puts them in the
+ * candidate set on rank alone, so raw BM25 (1 to 15) never meets cosine (0 to 1).
+ * A lexical-only row keeps its dense cosine (fulltextSearch with a query vector)
+ * as `score`, so the cross-encoder blend downstream stays on one scale.
+ *
+ * Returns the union, ordered by fused rank, each row carrying `fused`.
+ */
+export function fuseRecallArms(vector, lexical) {
+    const byScore = (rows) => [...rows].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).map((r) => String(r.id));
+    const fused = reciprocalRankFusion([byScore(vector), byScore(lexical)]);
+    const out = new Map();
+    for (const r of vector)
+        out.set(String(r.id), { ...r, fused: fused.get(String(r.id)) ?? 0 });
+    for (const r of lexical) {
+        const key = String(r.id);
+        const hit = out.get(key);
+        if (hit) {
+            hit.lexical = true;
+            continue;
+        }
+        out.set(key, { ...r, score: r.cosine ?? 0, fused: fused.get(key) ?? 0, lexical: true });
+    }
+    return [...out.values()].sort((a, b) => b.fused - a.fused);
+}
 const recallSchema = Type.Object({
     query: Type.String({ description: "What to search for in memory. Can be a concept, topic, decision, file path, or natural language description." }),
     scope: Type.Optional(Type.Union([
@@ -51,9 +80,14 @@ export function createRecallToolDef(state, session) {
                     memory: scope === "all" || scope === "memories" ? maxResults : 0,
                     artifact: scope === "all" || scope === "artifacts" ? maxResults : 0,
                 };
-                const results = await store.vectorSearch(queryVec, session.sessionId, limits);
+                const [vectorResults, lexicalResults] = await Promise.all([
+                    store.vectorSearch(queryVec, session.sessionId, limits),
+                    (typeof store.fulltextSearch === "function"
+                        ? store.fulltextSearch(params.query, limits, queryVec)
+                        : Promise.resolve([])).catch((e) => { swallow.warn("recall:fulltext", e); return []; }),
+                ]);
+                const results = fuseRecallArms(vectorResults, lexicalResults);
                 const topIds = results
-                    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
                     .slice(0, Math.min(maxResults, 8))
                     .map((r) => r.id);
                 let neighbors = [];
@@ -75,10 +109,17 @@ export function createRecallToolDef(state, session) {
                 // recalls were previously ranked WORSE than passive auto-injection.
                 // (ACAN/WMR are intentionally skipped here: their recency/utility signals
                 //  suit auto-injection; a deliberate recall wants pure semantic relevance.)
+                // Candidates go to dedup and the cross-encoder in FUSED order, so an
+                // exact-term hit with a low cosine is still inside the reranked window.
                 const scored = results.map((r) => ({ ...r, finalScore: r.score ?? 0 }));
-                const deduped = deduplicateResults(scored.sort((a, b) => b.finalScore - a.finalScore));
+                const deduped = deduplicateResults(scored);
                 const reranked = await rerankResults(deduped, params.query);
-                const primary = reranked.sort((a, b) => b.finalScore - a.finalScore).slice(0, maxResults);
+                // When the cross-encoder did not run (five or fewer candidates, model
+                // unavailable, breaker open) nothing carries a crossScore; keep the
+                // fused order then, since sorting by cosine would bury the lexical hits.
+                const crossRan = reranked.some((r) => r.crossScore !== undefined);
+                const primary = (crossRan ? [...reranked].sort((a, b) => b.finalScore - a.finalScore) : reranked)
+                    .slice(0, maxResults);
                 const primaryIds = new Set(primary.map(r => r.id));
                 const neighborList = neighbors.filter(n => !primaryIds.has(n.id)).slice(0, 5);
                 const all = primary;

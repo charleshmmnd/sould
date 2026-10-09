@@ -14,6 +14,8 @@ export interface VectorSearchResult {
     table: string;
     embedding?: number[];
     category?: string;
+    /** Dense cosine for a lexical (fulltextSearch) hit, when a query vector was passed. */
+    cosine?: number;
 }
 export interface TurnRecord {
     session_id: string;
@@ -403,7 +405,7 @@ export declare class SurrealStore {
         memory?: number;
         artifact?: number;
         skill?: number;
-    }): Promise<VectorSearchResult[]>;
+    }, queryVec?: number[]): Promise<VectorSearchResult[]>;
     graphExpand(nodeIds: string[], queryVec: number[], hops?: number): Promise<VectorSearchResult[]>;
     /** 0.7.121 — counter side-table. The old per-retrieval
      *  `UPDATE <row> SET access_count += 1` rewrote the ENTIRE row (embedding

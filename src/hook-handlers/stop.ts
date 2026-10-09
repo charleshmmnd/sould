@@ -159,13 +159,18 @@ export async function handleStop(
   log.debug(`Stop: turn=${session.userTurnCount}, tokens=${session.cumulativeTokens}`);
 
   if (session._pushDetected) {
+    const needsCi = session._pushNeedsCi;
     session._pushDetected = false;
+    session._pushNeedsCi = false;
     return {
       decision: "block" as const,
       reason: "[Sould] Remember your tier0 directives are important to the user and make you more helpful. " +
-        "You just ran git push. Before declaring done: " +
-        "(1) Check CI status with `gh run list` or `gh run watch`. " +
-        "(2) If CI hasn't triggered (e.g. only fires on tags), state that explicitly. " +
+        "You just ran git push and nothing after it checked the result. Before declaring done: " +
+        (needsCi
+          ? "(1) This repo has GitHub Actions: check the run with `gh run list` or `gh run watch`. " +
+            "(2) If CI hasn't triggered (e.g. only fires on tags), state that explicitly. "
+          : "(1) Confirm the push landed (`git ls-remote origin <branch>` matches local HEAD). " +
+            "(2) This repo has no GitHub Actions workflows, so say that nothing runs on push. ") +
         "(3) Do NOT say 'pushed' or 'done' without verifying. " +
         "Read and follow the Tier-0 rules. " +
         "And remember to save knowledge gems along the way.",

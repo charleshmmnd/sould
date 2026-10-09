@@ -62,6 +62,8 @@ export interface VectorSearchResult {
   table: string;
   embedding?: number[];
   category?: string;
+  /** Dense cosine for a lexical (fulltextSearch) hit, when a query vector was passed. */
+  cosine?: number;
 }
 
 export interface TurnRecord {
@@ -1599,25 +1601,34 @@ export class SurrealStore {
   async fulltextSearch(
     queryText: string,
     limits: { turn?: number; concept?: number; memory?: number; artifact?: number; skill?: number } = {},
+    queryVec?: number[],
   ): Promise<VectorSearchResult[]> {
     const terms = extractFtsTerms(queryText);
     if (terms.length === 0) return [];
     const scoreSum = terms.map((_, i) => `search::score(${i + 1})`).join(" + ");
     const params: Record<string, unknown> = {};
     terms.forEach((t, i) => { params[`t${i}`] = t; });
-    const TABLES: Array<{ table: string; field: string; limit: number; extra: string }> = [
-      { table: "concept", field: "content", limit: limits.concept ?? 0, extra: "AND superseded_at IS NONE" },
-      { table: "turn", field: "text", limit: limits.turn ?? 0, extra: "AND pruned_at IS NONE" },
-      { table: "memory", field: "text", limit: limits.memory ?? 0, extra: "" },
-      { table: "artifact", field: "description", limit: limits.artifact ?? 0, extra: "" },
-      { table: "skill", field: "description", limit: limits.skill ?? 0, extra: "" },
+    // With a query vector, each lexical hit also carries its dense cosine
+    // (`cosine`), so a caller can blend it with vector hits on one scale
+    // instead of mixing raw BM25 (1 to 15) with cosine (0 to 1).
+    if (queryVec) params.vec = queryVec;
+    // COSINE_GUARD_OK: read-only lexical retrieval; cosine is a projected column, no write follows.
+    const cos = queryVec ? ", vector::similarity::cosine(embedding, $vec) AS cosine" : "";
+    // Liveness mirrors vectorSearch: a superseded memory or retired skill must
+    // not come back through the lexical arm after supersede() decayed it.
+    const TABLES: Array<{ table: string; field: string; limit: number; extra: string; cols: string }> = [
+      { table: "concept", field: "content", limit: limits.concept ?? 0, extra: "AND superseded_at IS NONE", cols: ", created_at AS timestamp" },
+      { table: "turn", field: "text", limit: limits.turn ?? 0, extra: "AND pruned_at IS NONE", cols: ", role, timestamp, session_id AS sessionId" },
+      { table: "memory", field: "text", limit: limits.memory ?? 0, extra: "AND (status = 'active' OR status IS NONE)", cols: ", created_at AS timestamp, category" },
+      { table: "artifact", field: "description", limit: limits.artifact ?? 0, extra: "", cols: ", created_at AS timestamp" },
+      { table: "skill", field: "description", limit: limits.skill ?? 0, extra: "AND (active = true OR active IS NONE)", cols: "" },
     ];
     const out: VectorSearchResult[] = [];
-    for (const { table, field, limit, extra } of TABLES) {
+    for (const { table, field, limit, extra, cols } of TABLES) {
       if (limit <= 0) continue;
       const where = terms.map((_, i) => `${field} @${i + 1}@ $t${i}`).join(" OR ");
       const sql =
-        `SELECT id, ${field} AS text, '${table}' AS table, (${scoreSum}) AS score ` +
+        `SELECT id, ${field} AS text, '${table}' AS table, (${scoreSum}) AS score${cols}${cos} ` +
         `FROM ${table} WHERE (${where}) ${extra} ORDER BY score DESC LIMIT ${Math.max(1, Math.floor(limit))}`;
       try {
         const rows = await this.queryFirst<VectorSearchResult>(sql, params);

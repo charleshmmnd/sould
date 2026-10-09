@@ -91,6 +91,8 @@ export class SessionState {
     // agent to verify CI before declaring done. Structural gate — the agent
     // can't skip it because it fires automatically.
     _pushDetected = false;
+    /** The pushed repo has GitHub Actions, so only a `gh run` check clears the reminder. */
+    _pushNeedsCi = false;
     // Tool call optimization state (claw-code patterns)
     /** Query vector from this turn's context retrieval — used to detect redundant recall calls. */
     lastQueryVec = null;
@@ -125,6 +127,8 @@ export class SessionState {
     _hasMigratableFiles;
     /** Cached previous-session turns (stable within a session). */
     _cachedPrevTurns;
+    /** Previous-session turns already injected this session (cleared by PostCompact). */
+    _prevTurnsDelivered;
     /** Prefetch promise for previous-session turns — fires at session start, awaited in ensureRecentTurns. */
     _prevTurnsPrefetch;
     constructor(sessionId, sessionKey) {
