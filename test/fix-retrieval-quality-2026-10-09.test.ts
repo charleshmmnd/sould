@@ -133,7 +133,7 @@ describe("4. push reminder", () => {
   });
   it("resolves the pushed repo from the last cd before the push", () => {
     expect(pushRepoDir("cd /home/x/sould && npm test && git push", "/tmp")).toBe("/home/x/sould");
-    expect(pushRepoDir("cd ~/proj && git push", "/base")).toMatch(/\/proj$/);
+    expect(pushRepoDir("cd ~/proj && git push", "/base")).toMatch(/[\\/]proj$/);
     expect(pushRepoDir("git push", "/repo")).toBe("/repo");
   });
 });
