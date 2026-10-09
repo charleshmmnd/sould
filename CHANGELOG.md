@@ -4,6 +4,17 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+### Fixed
+- **`recall` could not find exact names.** The tool ran the dense arm only, so a proper name with almost no semantic signal was invisible: on 2026-10-09 `recall("Burbage")` returned none of the three memories containing the word, and the top hit was an unrelated two-word turn. `recall` now runs `fulltextSearch` beside `vectorSearch` and fuses them with reciprocal rank fusion (`fuseRecallArms`). Candidates reach dedup and the cross-encoder in fused order, and when the cross-encoder does not run the fused order is kept, because a cosine sort would bury the lexical hits. Verified live: the same query now returns the correction memory first and the 2026-09-22 fact third.
+- **`fulltextSearch` mixed scales and skipped liveness.** It takes an optional query vector and returns each hit's dense cosine (`cosine`), timestamp and role. Memory hits now require `status = 'active'` and skill hits `active = true`, the same filters `vectorSearch` uses, so a superseded memory no longer returns through the lexical arm.
+- **The prompt being answered came back as the top past turn.** The just-stored-turn filter covered the vector arm only, and the BM25 arm matches the prompt's own words exactly, so every prompt was injected with itself as `[#1] [past_turns] [load-bearing]` and the grounding nudge then asked for it to be cited. `isEchoOfCurrentPrompt` now filters all three arms (recent turns, turns with no timestamp, and turns whose text is the prompt). A lexical row also carries its cosine as `score` in auto-injection; raw BM25 (1 to 15) had cleared `MIN_COSINE` and outranked every real match.
+- **Previous-session turns rode along on every prompt.** `ensureRecentTurns` adds the last turns of the previous session at a fixed 0.70, whatever the topic, and did so on every prompt, so the same unrelated turns showed as "70% relevant" all session. They now go out on the first prompt of a session only (`_prevTurnsDelivered`); PostCompact re-arms them.
+- **The Stop push reminder blocked after verified pushes.** It fired on any `git push` in a command, including one that verified the push in the same command, one followed by a verification later in the turn, and pushes to repos with no GitHub Actions at all (twice on 2026-10-09). `pushReminderOwed` clears it on `git ls-remote`, `git status -sb`, `git rev-parse origin/...` or `gh run list|watch|view` after the push; a repo with `.github/workflows` still needs a `gh run` check, and the reminder text now names the check that applies.
+- **Three version surfaces were left at 0.10.0** by the 0.10.1 and 0.10.2 bumps (`package-lock.json`, `CLIENT_VERSION`, the McpServer version); this release sets them with the rest.
+
+### Tests
+- `test/fix-retrieval-quality-2026-10-09.test.ts` (17): lexical-only hit kept with its cosine, both-arm hit ranks first, dense-only order unchanged, RecordId-shaped ids merge; echo filter for recent, timestamp-less and identical-text turns; previous-session turns once per session and re-armed after compaction; push reminder for same-command, later-command, before-push and CI-repo cases, and repo resolution from `cd`.
+
 ## [0.10.2] - 2026-10-07
 
 ### Fixed
