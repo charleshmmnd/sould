@@ -568,7 +568,7 @@ async function shutdown(): Promise<void> {
 
 async function main(): Promise<void> {
   const server = new Server(
-    { name: "sould", version: "0.10.0" },
+    { name: "sould", version: "0.10.3" },
     { capabilities: { tools: {} } },
   );
 

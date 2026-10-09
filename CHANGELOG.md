@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-10-09
+
 ### Fixed
 - **`recall` could not find exact names.** The tool ran the dense arm only, so a proper name with almost no semantic signal was invisible: on 2026-10-09 `recall("Burbage")` returned none of the three memories containing the word, and the top hit was an unrelated two-word turn. `recall` now runs `fulltextSearch` beside `vectorSearch` and fuses them with reciprocal rank fusion (`fuseRecallArms`). Candidates reach dedup and the cross-encoder in fused order, and when the cross-encoder does not run the fused order is kept, because a cosine sort would bury the lexical hits. Verified live: the same query now returns the correction memory first and the 2026-09-22 fact third.
 - **`fulltextSearch` mixed scales and skipped liveness.** It takes an optional query vector and returns each hit's dense cosine (`cosine`), timestamp and role. Memory hits now require `status = 'active'` and skill hits `active = true`, the same filters `vectorSearch` uses, so a superseded memory no longer returns through the lexical arm.

@@ -6,12 +6,12 @@
 
 [![sould.dev](https://img.shields.io/badge/sould.dev-home-141229?style=for-the-badge&labelColor=e9b44c&color=141229)](https://sould.dev)
 
-[![Version](https://img.shields.io/badge/v0.10.2-stable-22c55e?style=for-the-badge)](https://github.com/charleshmmnd/sould)
+[![Version](https://img.shields.io/badge/v0.10.3-stable-22c55e?style=for-the-badge)](https://github.com/charleshmmnd/sould)
 [![GitHub Stars](https://img.shields.io/github/stars/charleshmmnd/sould?style=for-the-badge&logo=github&color=gold)](https://github.com/charleshmmnd/sould)
 [![License: MIT](https://img.shields.io/github/license/charleshmmnd/sould?style=for-the-badge&logo=opensourceinitiative&color=blue)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![SurrealDB](https://img.shields.io/badge/SurrealDB-3.1-ff00a0?style=for-the-badge&logo=surrealdb&logoColor=white)](https://surrealdb.com)
-[![Tests](https://img.shields.io/badge/Tests-1864_passing-brightgreen?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev)
+[![Tests](https://img.shields.io/badge/Tests-1899_passing-brightgreen?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev)
 
 **Graph-backed permanent memory for [Claude Code](https://claude.ai/claude-code).**
 
