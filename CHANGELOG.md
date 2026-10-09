@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.4] - 2026-10-09
+
 ### Fixed
 - **v0.10.3's Windows build failed on its own new test.** `pushRepoDir("cd ~/proj ...")` resolves to `C:\\Users\\...\\proj` on Windows and the test expected a forward slash. The test now accepts either separator; the code was correct. v0.10.3 published no release artifacts, so 0.10.4 is the first release carrying the retrieval fixes.
 

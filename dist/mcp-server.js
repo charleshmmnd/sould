@@ -530,7 +530,7 @@ async function shutdown() {
 }
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
-    const server = new Server({ name: "sould", version: "0.10.3" }, { capabilities: { tools: {} } });
+    const server = new Server({ name: "sould", version: "0.10.4" }, { capabilities: { tools: {} } });
     // Register tool list handler
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
         tools: TOOLS,

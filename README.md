@@ -6,7 +6,7 @@
 
 [![sould.dev](https://img.shields.io/badge/sould.dev-home-141229?style=for-the-badge&labelColor=e9b44c&color=141229)](https://sould.dev)
 
-[![Version](https://img.shields.io/badge/v0.10.3-stable-22c55e?style=for-the-badge)](https://github.com/charleshmmnd/sould)
+[![Version](https://img.shields.io/badge/v0.10.4-stable-22c55e?style=for-the-badge)](https://github.com/charleshmmnd/sould)
 [![GitHub Stars](https://img.shields.io/github/stars/charleshmmnd/sould?style=for-the-badge&logo=github&color=gold)](https://github.com/charleshmmnd/sould)
 [![License: MIT](https://img.shields.io/github/license/charleshmmnd/sould?style=for-the-badge&logo=opensourceinitiative&color=blue)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
