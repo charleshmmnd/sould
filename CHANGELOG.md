@@ -4,10 +4,14 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+### Tests
+- **The live DB-state test connected to the wrong database.** It took config's bare default (`ws://localhost:8000/rpc`), where no managed install listens, so its connect hook timed out on every machine without `SURREAL_URL` set. It now resolves like the daemon: `SURREAL_URL` if set, otherwise the managed instance on `pickPort()`. With that, all 16 invariants run and pass against the live graph (after healing 171 skill rows left self-superseded since May 2026: `superseded_by` cleared, `active` left false).
+- **The R6 real-daemon TCP smoke test could not pass where Sould is in use.** It spawns a daemon against the real cache dir, which refuses to start while a live daemon owns `daemon.pid`, so the test waited out its 120 s ready timeout. It now skips when a live daemon holds the lock, as it already did under CI.
+
 ## [0.10.4] - 2026-10-09
 
 ### Fixed
-- **v0.10.3's Windows build failed on its own new test.** `pushRepoDir("cd ~/proj ...")` resolves to `C:\\Users\\...\\proj` on Windows and the test expected a forward slash. The test now accepts either separator; the code was correct. v0.10.3 published no release artifacts, so 0.10.4 is the first release carrying the retrieval fixes.
+- **v0.10.3's Windows build failed on its own new test.** `pushRepoDir("cd ~/proj ...")` resolves to `C:\Users\...\proj` on Windows and the test expected a forward slash. The test now accepts either separator; the code was correct. v0.10.3 published no release artifacts, so 0.10.4 is the first release carrying the retrieval fixes.
 
 ## [0.10.3] - 2026-10-09
 

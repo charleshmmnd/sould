@@ -35,7 +35,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { Surreal } from "surrealdb";
 import { parsePluginConfig } from "../../src/engine/config.js";
-import { readManagedCred } from "../../src/engine/bootstrap.js";
+import { pickPort, readManagedCred } from "../../src/engine/bootstrap.js";
 
 const SOCKET_PATH =
   process.env.SOULD_DAEMON_SOCKET ?? join(homedir(), ".sould-daemon.sock");
@@ -60,7 +60,12 @@ describe.skipIf(!RUN_LIVE)("sould DB state invariants (live, read-only)", () => 
 
   beforeAll(async () => {
     const config = parsePluginConfig({});
-    const { url, ns, db: dbName, user, pass } = config.surreal;
+    const { ns, db: dbName, user, pass } = config.surreal;
+    // Resolve the target like the daemon does: SURREAL_URL wins, otherwise the
+    // managed instance on pickPort(). config's bare default (localhost:8000) is
+    // where no managed install listens, so this test used to time out in its
+    // connect hook on every machine without SURREAL_URL set.
+    const url = process.env.SURREAL_URL || `ws://127.0.0.1:${pickPort()}/rpc`;
     // Phase 3: the live instance may be HARDENED (root rotated away).
     // Resolve like production: explicit env creds verbatim; otherwise this
     // machine's managed cred file first, legacy defaults last. RUN_LIVE

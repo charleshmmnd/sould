@@ -21,8 +21,8 @@
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { createServer, type Server } from "node:net";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -246,7 +246,21 @@ const daemonScript = (() => {
 // Honour the documented "skips in CI" intent so this real-binary integration smoke
 // test only runs where the runtime exists (local/built); CI keeps the 10 unit-level
 // transport tests above. (Without this, the gate never skipped and CI went red.)
-const DAEMON_AVAILABLE = !!daemonScript && existsSync(daemonScript) && !process.env.CI;
+// A live sould daemon owning ~/.sould/cache/daemon.pid makes the spawned one
+// refuse to start ("another sould daemon already owns ..."), so ensureDaemon
+// waits out its 120 s ready timeout and the test fails on every machine where
+// Sould is in use. Skip there too; the smoke test needs a machine with no live
+// daemon (or SOULD_CACHE_DIR pointing elsewhere).
+function liveDaemonOwnsLock(): boolean {
+  try {
+    const cacheDir = process.env.SOULD_CACHE_DIR || join(homedir(), ".sould", "cache");
+    const { pid } = JSON.parse(readFileSync(join(cacheDir, "daemon.pid"), "utf8")) as { pid?: number };
+    if (!pid) return false;
+    process.kill(pid, 0);
+    return true;
+  } catch { return false; }
+}
+const DAEMON_AVAILABLE = !!daemonScript && existsSync(daemonScript) && !process.env.CI && !liveDaemonOwnsLock();
 const itDaemon = (name: string, fn: () => Promise<void>, timeout?: number) =>
   it(name, async () => { if (!DAEMON_AVAILABLE) return; await fn(); }, timeout);
 
