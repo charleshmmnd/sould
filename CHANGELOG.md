@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.5] - 2026-10-15
+
 ### Fixed
 - **A new tier-0 rule was refused on a full budget that delivery no longer enforced.** On 2026-10-15 `core_memory add` refused a 300-char rule because 35 active entries summed past the old single-prompt render budget (about 22 K chars), so a high-priority rule from the user could not be pinned. Since 0.10.1 directives roll out in full once per session in batches under the inline ceiling, and nothing is evicted; a new rule only lengthens the cycle. Admission now measures that: an entry is refused only when it is longer than the per-item delivery cap (4,000 chars, soul rows excepted since they are windowed) or when the full cycle would exceed 12 prompts (`MAX_TIER0_CYCLE_PROMPTS`). Soul rows count at their 800-char window, not their stored 15 K to 33 K. A priority-only update of a row already in tier 0 is never refused for length. Every add, update and list now reports the cycle length. The skip-retrieval passthrough path also uses the wrapper's rolling plan instead of the render budget.
 - **Reflections were injected but not searchable.** The 245 session-review lessons on this graph were injected on every prompt yet `recall` never queried the `reflection` table. `recall` now includes reflections in `scope=all`, has a `scope=reflections`, and the lexical arm covers the table through a new `reflection_fts_idx`. Rows carry their category (`[reflection/session_review]`) and date.
