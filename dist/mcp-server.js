@@ -65,7 +65,7 @@ const TOOLS = [
                 query: { type: "string", description: "Natural language search query" },
                 scope: {
                     type: "string",
-                    enum: ["all", "memories", "concepts", "turns", "artifacts", "skills"],
+                    enum: ["all", "memories", "concepts", "turns", "artifacts", "skills", "reflections"],
                     description: "Narrow search to a specific knowledge type (default: all)",
                 },
                 limit: {
@@ -285,6 +285,8 @@ const TOOLS = [
                 preconditions: { type: "string", description: "Optional structured preconditions text." },
                 postconditions: { type: "string", description: "Optional structured postconditions text." },
                 steps: { type: "array", description: "Optional structured step list (strings or {tool, description, argsPattern} objects)." },
+                surface_at_session_start: { type: "boolean", description: "Routine flag: inject this skill at SessionStart and on the first prompt, by flag rather than by semantic match (e.g. a morning check)." },
+                surface_hours: { type: "array", items: { type: "integer" }, description: "Optional [from, to) local-hour window for the routine flag, e.g. [5, 12] for mornings. Omit for any hour." },
             },
             required: ["name", "description", "body"],
         },
@@ -312,6 +314,8 @@ const TOOLS = [
                 preconditions: { type: "string", description: "New structured preconditions text." },
                 postconditions: { type: "string", description: "New structured postconditions text." },
                 steps: { type: "array", description: "New structured step list (strings or {tool, description, argsPattern} objects)." },
+                surface_at_session_start: { type: "boolean", description: "Routine flag: inject this skill at SessionStart and on the first prompt, by flag rather than by semantic match (e.g. a morning check)." },
+                surface_hours: { type: "array", items: { type: "integer" }, description: "Optional [from, to) local-hour window for the routine flag, e.g. [5, 12] for mornings. Omit for any hour." },
             },
             required: ["name"],
         },

@@ -129,6 +129,8 @@ export class SessionState {
     _cachedPrevTurns;
     /** Previous-session turns already injected this session (cleared by PostCompact). */
     _prevTurnsDelivered;
+    /** Routines due at this session's start (0.10.5); re-sent on the first prompt. */
+    _routinesNote;
     /** Prefetch promise for previous-session turns — fires at session start, awaited in ensureRecentTurns. */
     _prevTurnsPrefetch;
     constructor(sessionId, sessionKey) {

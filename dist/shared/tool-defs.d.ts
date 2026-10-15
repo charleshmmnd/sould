@@ -28,7 +28,7 @@ export declare const MCP_TOOLS: readonly [{
             };
             readonly scope: {
                 readonly type: "string";
-                readonly enum: readonly ["all", "memories", "concepts", "turns", "artifacts", "skills"];
+                readonly enum: readonly ["all", "memories", "concepts", "turns", "artifacts", "skills", "reflections"];
                 readonly description: "Narrow search to a specific knowledge type (default: all)";
             };
             readonly limit: {
@@ -364,6 +364,17 @@ export declare const MCP_TOOLS: readonly [{
                 readonly type: "array";
                 readonly description: "Optional structured step list (strings or {tool, description, argsPattern} objects).";
             };
+            readonly surface_at_session_start: {
+                readonly type: "boolean";
+                readonly description: "Routine flag: inject this skill at SessionStart and on the first prompt, by flag rather than by semantic match (e.g. a morning check).";
+            };
+            readonly surface_hours: {
+                readonly type: "array";
+                readonly items: {
+                    readonly type: "integer";
+                };
+                readonly description: "Optional [from, to) local-hour window for the routine flag, e.g. [5, 12] for mornings. Omit for any hour.";
+            };
         };
         readonly required: readonly ["name", "description", "body"];
     };
@@ -409,6 +420,17 @@ export declare const MCP_TOOLS: readonly [{
             readonly steps: {
                 readonly type: "array";
                 readonly description: "New structured step list (strings or {tool, description, argsPattern} objects).";
+            };
+            readonly surface_at_session_start: {
+                readonly type: "boolean";
+                readonly description: "Routine flag: inject this skill at SessionStart and on the first prompt, by flag rather than by semantic match (e.g. a morning check).";
+            };
+            readonly surface_hours: {
+                readonly type: "array";
+                readonly items: {
+                    readonly type: "integer";
+                };
+                readonly description: "Optional [from, to) local-hour window for the routine flag, e.g. [5, 12] for mornings. Omit for any hour.";
             };
         };
         readonly required: readonly ["name"];

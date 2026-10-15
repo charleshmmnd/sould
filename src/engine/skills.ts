@@ -165,6 +165,10 @@ export function shouldRecordSkillOutcome(
 }
 
 export interface SkillRetrievalOpts {
+  /** Relevance floor on raw cosine (default 0.4). Callers outside the
+   *  code-shaped intents pass a higher floor so a routine like a morning
+   *  check surfaces on "queue check" but not on every unrelated prompt. */
+  minScore?: number;
   /** The user's prompt text — the cross-encoder anchor. */
   queryText?: string;
   /** Cross-encoder scorer, injected to avoid a circular import (graph-context
@@ -212,8 +216,9 @@ export async function findRelevantSkills(
     // edge cases (backfill lag, test mocks); default to [] so cosineSim returns
     // 0 — such a candidate incurs no diversity penalty and ranks by relevance
     // rather than vanishing from retrieval.
+    const minScore = opts?.minScore ?? 0.4;
     const pool = rows
-      .filter((r: any) => (r.score ?? 0) > 0.4)
+      .filter((r: any) => (r.score ?? 0) > minScore)
       .map((r: any) => ({ row: r, emb: (Array.isArray(r.embedding) ? r.embedding : []) as number[], rel: Number(r.score) }));
 
     // Cross-encoder rerank (step 2): rescore each candidate's relevance with the
@@ -328,3 +333,70 @@ export async function recordSkillOutcome(
   } catch (e) { swallow("skills:non-critical", e); }
 }
 
+
+// Routines: skills surfaced at session start without a query (0.10.5).
+
+export interface RoutineSkill {
+  id: string;
+  name: string;
+  description: string;
+  steps: SkillStep[];
+  preconditions?: string;
+  surfaceHours?: [number, number];
+}
+
+/** Pure: which flagged routines are due at `localHour`. `surface_hours` is a
+ *  half-open [from, to) window in local hours; a window that wraps midnight
+ *  ([22, 6)) is honoured; no window means always. */
+export function selectDueRoutines(rows: RoutineSkill[], localHour: number): RoutineSkill[] {
+  return rows.filter((r) => {
+    const w = r.surfaceHours;
+    if (!w || w.length !== 2) return true;
+    const [from, to] = w;
+    if (from === to) return true;
+    return from < to ? (localHour >= from && localHour < to) : (localHour >= from || localHour < to);
+  });
+}
+
+/** Flagged routines that are due now. Read-only; failures return []. */
+export async function findDueRoutines(store: SurrealStore | undefined, now: Date = new Date()): Promise<RoutineSkill[]> {
+  if (!store?.isAvailable()) return [];
+  try {
+    const rows = await store.queryFirst<any>(
+      `SELECT id, name, description, steps, preconditions, surface_hours
+       FROM skill
+       WHERE surface_at_session_start = true AND (active = true OR active IS NONE)
+       ORDER BY name LIMIT 10`,
+    );
+    const all: RoutineSkill[] = rows.map((r: any): RoutineSkill => ({
+      id: safeId(r.id),
+      name: String(r.name ?? ""),
+      description: String(r.description ?? ""),
+      steps: Array.isArray(r.steps) ? r.steps : [],
+      preconditions: r.preconditions ?? undefined,
+      surfaceHours: Array.isArray(r.surface_hours) && r.surface_hours.length === 2
+        ? [Number(r.surface_hours[0]), Number(r.surface_hours[1])] as [number, number]
+        : undefined,
+    })).filter((r: RoutineSkill) => r.id && r.name);
+    return selectDueRoutines(all, now.getHours());
+  } catch (e) {
+    swallow.warn("skills:routines", e);
+    return [];
+  }
+}
+
+/** Compact block for SessionStart and the first prompt. Kept short so it sits
+ *  inside the harness inline preview even when the wakeup text is long. */
+export function formatRoutineContext(routines: RoutineSkill[]): string {
+  if (routines.length === 0) return "";
+  const clean = (v: unknown) => stripStructuralTags(String(v ?? ""));
+  const lines = routines.map((r) => {
+    const steps = r.steps.slice(0, 6).map((st, i) => {
+      const d = typeof st === "string" ? st : clean((st as SkillStep).description);
+      return `  ${i + 1}. ${d.slice(0, 160)}`;
+    });
+    return `### ${clean(r.name)}\n${clean(r.description).slice(0, 400)}${steps.length ? "\n" + steps.join("\n") : ""}`;
+  });
+  return `[ROUTINES DUE NOW]\nThese skills are flagged to run at session start in this time window. ` +
+    `Start with them unless the first prompt says otherwise, and say which one you are running.\n${lines.join("\n\n")}`;
+}

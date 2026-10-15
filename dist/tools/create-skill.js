@@ -23,6 +23,9 @@ export async function handleCreateSkill(state, session, args) {
     const preconditions = typeof args.preconditions === "string" ? args.preconditions.trim() : undefined;
     const postconditions = typeof args.postconditions === "string" ? args.postconditions.trim() : undefined;
     const stepsArg = args.steps;
+    const routine = parseRoutineArgs(args);
+    if (routine.error)
+        return errText(routine.error);
     if (!name)
         return errText("Error: `name` is required (kebab-case, matches the slash command).");
     if (!description)
@@ -52,6 +55,7 @@ export async function handleCreateSkill(state, session, args) {
         // caused me to wrongly archive 6 legitimate skills earlier this
         // turn — including sould-heal-skill-corruption itself).
         source: "create_skill_tool",
+        extras: routine.extras,
         embeddingText: `${name}: ${description}\n\n${body}`,
         sessionId: session.sessionId,
     });
@@ -67,6 +71,24 @@ export async function handleCreateSkill(state, session, args) {
                 }, null, 2),
             }],
     };
+}
+/**
+ * Routine flags (0.10.5): `surface_at_session_start` marks a skill to be
+ * injected at SessionStart and on the first prompt without a semantic match;
+ * `surface_hours` is an optional [from, to) local-hour window.
+ */
+export function parseRoutineArgs(args) {
+    const extras = {};
+    if (typeof args.surface_at_session_start === "boolean")
+        extras.surface_at_session_start = args.surface_at_session_start;
+    if (args.surface_hours !== undefined) {
+        const h = args.surface_hours;
+        const ok = Array.isArray(h) && h.length === 2 && h.every((n) => Number.isInteger(n) && n >= 0 && n <= 24);
+        if (!ok)
+            return { error: "Error: `surface_hours` must be [from, to] with integer local hours 0 to 24 (half-open window)." };
+        extras.surface_hours = [Number(h[0]), Number(h[1])];
+    }
+    return { extras: Object.keys(extras).length ? extras : undefined };
 }
 function errText(text) {
     return { content: [{ type: "text", text }] };

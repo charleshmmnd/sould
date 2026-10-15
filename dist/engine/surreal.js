@@ -1406,6 +1406,7 @@ export class SurrealStore {
             { table: "memory", field: "text", limit: limits.memory ?? 0, extra: "AND (status = 'active' OR status IS NONE)", cols: ", created_at AS timestamp, category" },
             { table: "artifact", field: "description", limit: limits.artifact ?? 0, extra: "", cols: ", created_at AS timestamp" },
             { table: "skill", field: "description", limit: limits.skill ?? 0, extra: "AND (active = true OR active IS NONE)", cols: "" },
+            { table: "reflection", field: "text", limit: limits.reflection ?? 0, extra: "AND (active = true OR active IS NONE)", cols: ", created_at AS timestamp, category" },
         ];
         const out = [];
         for (const { table, field, limit, extra, cols } of TABLES) {

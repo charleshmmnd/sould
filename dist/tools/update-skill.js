@@ -20,6 +20,7 @@
  */
 import { swallow } from "../engine/errors.js";
 import { assertRecordId } from "../engine/surreal.js";
+import { parseRoutineArgs } from "./create-skill.js";
 export async function handleUpdateSkill(state, _session, args) {
     const name = typeof args.name === "string" ? args.name.trim() : "";
     if (!name)
@@ -71,14 +72,26 @@ export async function handleUpdateSkill(state, _session, args) {
         params.postconditions = args.postconditions.trim();
         fieldsUpdated.push("postconditions");
     }
+    const routine = parseRoutineArgs(args);
+    if (routine.error)
+        return text(routine.error);
+    for (const [k, v] of Object.entries(routine.extras ?? {})) {
+        setClauses.push(`${k} = $${k}`);
+        params[k] = v;
+        fieldsUpdated.push(k);
+    }
     if (fieldsUpdated.length === 0) {
-        return text("Error: provide at least one field to update (body, description, steps, preconditions, postconditions).");
+        return text("Error: provide at least one field to update (body, description, steps, preconditions, postconditions, surface_at_session_start, surface_hours).");
     }
     // Re-embed so the vector index reflects the new content. NEVER leave a stale
     // vector matching the old body — set embedding = NONE on failure so the
     // maintenance backfill (WHERE embedding IS NONE) recomputes it.
+    const contentChanged = fieldsUpdated.includes("body") || fieldsUpdated.includes("description");
     let reEmbedded = false;
-    if (embeddings.isAvailable()) {
+    if (!contentChanged) {
+        // Flags only: the embedding target is unchanged, keep the vector.
+    }
+    else if (embeddings.isAvailable()) {
         try {
             const vec = await embeddings.embed(`${name}: ${finalDescription}\n\n${finalBody}`);
             if (vec?.length) {
@@ -91,7 +104,7 @@ export async function handleUpdateSkill(state, _session, args) {
             swallow.warn("update-skill:embed", e);
         }
     }
-    if (!reEmbedded)
+    if (contentChanged && !reEmbedded)
         setClauses.push("embedding = NONE");
     setClauses.push("updated_at = time::now()");
     // Target the exact row read above by id, NOT `WHERE name`: skill.name has no

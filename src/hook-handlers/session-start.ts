@@ -21,6 +21,8 @@ import { assertRecordId } from "../engine/surreal.js";
 import { runBootstrapMaintenance } from "../engine/maintenance.js";
 import { checkStageTransition } from "../engine/soul.js";
 import { countActionablePendingWork } from "../tools/pending-work.js";
+import { findDueRoutines, formatRoutineContext } from "../engine/skills.js";
+import { enforceInlineCeiling, resolveHookInlineMaxChars } from "../engine/inline-budget.js";
 
 export async function handleSessionStart(
   state: GlobalPluginState,
@@ -202,7 +204,30 @@ export async function handleSessionStart(
     }
   }
 
-  const parts = [wakeupText, pendingNote].filter((p): p is string => !!p);
-  const additionalContext = parts.join("\n\n") || undefined;
+  // Routines flagged surface_at_session_start (0.10.5). A "session start on
+  // a Thursday morning" query does not reach a morning LeadForge check by
+  // embedding alone, so flagged skills are surfaced by the flag and the local
+  // hour, not by similarity. Cached on the session for the first prompt too.
+  let routinesNote: string | null = null;
+  if (store.isAvailable()) {
+    const due = await findDueRoutines(store).catch(() => []);
+    if (due.length > 0) {
+      routinesNote = formatRoutineContext(due);
+      session._routinesNote = routinesNote;
+      log.info(`[routines] ${due.length} due at session start: ${due.map((r) => r.name).join(", ")}`);
+    }
+  }
+
+  // Short, actionable blocks first: the harness persists a long payload to a
+  // file and shows only a 2 KB preview, and the wakeup alone has reached
+  // 90 K chars on a mature graph. The whole payload is also held under the
+  // inline ceiling (0.10.1), the same way UserPromptSubmit is.
+  const parts = [routinesNote, pendingNote, wakeupText].filter((p): p is string => !!p);
+  let additionalContext = parts.join("\n\n") || undefined;
+  if (additionalContext) {
+    const fitted = enforceInlineCeiling(additionalContext, resolveHookInlineMaxChars());
+    if (fitted.trimmed > 0) log.warn(`[inline-ceiling] SessionStart payload trimmed by ${fitted.trimmed} chars`);
+    additionalContext = fitted.text;
+  }
   return makeHookOutput("SessionStart", additionalContext);
 }

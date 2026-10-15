@@ -9,7 +9,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { applyCoreBudgetVerbose } from "../src/engine/graph-context.js";
 import { stripStructuralTags, stripReminderWrapper } from "../src/engine/sanitize.js";
 import { resolveSessionId } from "../src/mcp-client/index.js";
-import { createCoreMemoryToolDef } from "../src/engine/tools/core-memory.js";
+import { createCoreMemoryToolDef, MAX_TIER0_CYCLE_PROMPTS } from "../src/engine/tools/core-memory.js";
+import { tier0FullBudgetChars, resolveHookInlineMaxChars } from "../src/engine/inline-budget.js";
 import { GlobalPluginState, SessionState } from "../src/engine/state.js";
 import { SurrealStore } from "../src/engine/surreal.js";
 import type { CoreMemoryEntry } from "../src/engine/surreal.js";
@@ -145,9 +146,10 @@ describe("core_memory update: id lookup must survive RecordId objects", () => {
       id: recordId("core_memory:a") as unknown as string,
       text: "a".repeat(200), category: "rules", priority: 100, tier: 0, active: true,
     }] as CoreMemoryEntry[];
-    // Fill the budget so any real check must refuse the tier-move-in below.
-    let used = 206;
-    for (let i = 0; used + 706 <= 22_165; i++, used += 706) {
+    // Fill tier 0 past the delivery-cycle limit (0.10.5 rolling model) so
+    // any real check must refuse the tier-move-in below.
+    const perPrompt = Math.floor(tier0FullBudgetChars(resolveHookInlineMaxChars()) / 706);
+    for (let i = 0; i < perPrompt * (MAX_TIER0_CYCLE_PROMPTS + 1); i++) {
       rows.push({
         id: recordId(`core_memory:f${i}`) as unknown as string,
         text: "f".repeat(700), category: "rules", priority: 95, tier: 0, active: true,
@@ -173,11 +175,10 @@ describe("core_memory update: id lookup must survive RecordId objects", () => {
     const res = await tool.execute("t", { action: "update", id: "core_memory:t1", tier: 0 });
     // The assertion that matters is that the guard RAN. With `===` against a
     // RecordId the row is never found, the check is skipped entirely, and the
-    // write goes through with `reason` undefined. Which of the two refusals
-    // fires depends on where the candidate sorts, and is not the point.
+    // write goes through with `reason` undefined.
     const d = res!.details as { error?: boolean; reason?: string };
     expect(d.error).toBe(true);
-    expect(["budget_full", "would_evict"]).toContain(d.reason);
+    expect(d.reason).toBe("cycle_too_long");
     expect(written).toHaveLength(0);
   });
 });

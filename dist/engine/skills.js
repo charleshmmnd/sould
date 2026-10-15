@@ -158,8 +158,9 @@ export async function findRelevantSkills(queryVec, limit = 3, store, opts) {
         // edge cases (backfill lag, test mocks); default to [] so cosineSim returns
         // 0 — such a candidate incurs no diversity penalty and ranks by relevance
         // rather than vanishing from retrieval.
+        const minScore = opts?.minScore ?? 0.4;
         const pool = rows
-            .filter((r) => (r.score ?? 0) > 0.4)
+            .filter((r) => (r.score ?? 0) > minScore)
             .map((r) => ({ row: r, emb: (Array.isArray(r.embedding) ? r.embedding : []), rel: Number(r.score) }));
         // Cross-encoder rerank (step 2): rescore each candidate's relevance with the
         // bge-reranker (query-text × skill-text), blended 0.6 cosine / 0.4 cross so
@@ -266,4 +267,60 @@ export async function recordSkillOutcome(skillId, success, durationMs, store) {
     catch (e) {
         swallow("skills:non-critical", e);
     }
+}
+/** Pure: which flagged routines are due at `localHour`. `surface_hours` is a
+ *  half-open [from, to) window in local hours; a window that wraps midnight
+ *  ([22, 6)) is honoured; no window means always. */
+export function selectDueRoutines(rows, localHour) {
+    return rows.filter((r) => {
+        const w = r.surfaceHours;
+        if (!w || w.length !== 2)
+            return true;
+        const [from, to] = w;
+        if (from === to)
+            return true;
+        return from < to ? (localHour >= from && localHour < to) : (localHour >= from || localHour < to);
+    });
+}
+/** Flagged routines that are due now. Read-only; failures return []. */
+export async function findDueRoutines(store, now = new Date()) {
+    if (!store?.isAvailable())
+        return [];
+    try {
+        const rows = await store.queryFirst(`SELECT id, name, description, steps, preconditions, surface_hours
+       FROM skill
+       WHERE surface_at_session_start = true AND (active = true OR active IS NONE)
+       ORDER BY name LIMIT 10`);
+        const all = rows.map((r) => ({
+            id: safeId(r.id),
+            name: String(r.name ?? ""),
+            description: String(r.description ?? ""),
+            steps: Array.isArray(r.steps) ? r.steps : [],
+            preconditions: r.preconditions ?? undefined,
+            surfaceHours: Array.isArray(r.surface_hours) && r.surface_hours.length === 2
+                ? [Number(r.surface_hours[0]), Number(r.surface_hours[1])]
+                : undefined,
+        })).filter((r) => r.id && r.name);
+        return selectDueRoutines(all, now.getHours());
+    }
+    catch (e) {
+        swallow.warn("skills:routines", e);
+        return [];
+    }
+}
+/** Compact block for SessionStart and the first prompt. Kept short so it sits
+ *  inside the harness inline preview even when the wakeup text is long. */
+export function formatRoutineContext(routines) {
+    if (routines.length === 0)
+        return "";
+    const clean = (v) => stripStructuralTags(String(v ?? ""));
+    const lines = routines.map((r) => {
+        const steps = r.steps.slice(0, 6).map((st, i) => {
+            const d = typeof st === "string" ? st : clean(st.description);
+            return `  ${i + 1}. ${d.slice(0, 160)}`;
+        });
+        return `### ${clean(r.name)}\n${clean(r.description).slice(0, 400)}${steps.length ? "\n" + steps.join("\n") : ""}`;
+    });
+    return `[ROUTINES DUE NOW]\nThese skills are flagged to run at session start in this time window. ` +
+        `Start with them unless the first prompt says otherwise, and say which one you are running.\n${lines.join("\n\n")}`;
 }

@@ -71,7 +71,7 @@ const READ_ONLY_COSINE_SITES = new Set<string>([
   // findRelevantSkills (skills.ts) and findSimilarReflections
   // (reflection.ts) — read-only retrieval.
   "src/engine/skills.ts:108",
-  "src/engine/reflection.ts:55",
+  "src/engine/reflection.ts:57",
 
   // linkToRelevantConcepts / linkConceptHierarchy — creates edges
   // (mentions, about_concept, etc.); doesn't destructively mutate

@@ -61,6 +61,11 @@ ${hasRetrievedMemories ? `  "resolved": [
     // E.g. for "apps.yaml schema" → ["migrating trading crons to Docker", "Docker compose migration"].
     // Categories: technical, architectural, behavioral, environmental, procedural
     // Max 8 per batch.
+    // ALIASES: when the user refers to a person, company, site or thing by a nickname or a
+    // description ("the SEO lady", "the painter", "the hub"), add ONE concept per alias whose
+    // content starts with: ALIAS: "<nickname>" = <Formal Name> (<org or role>) and then one
+    // sentence of context (mailbox, thread, relationship). Put the nickname AND the formal name
+    // in searchTerms. Keep the entity's own facts in separate concepts under the formal name.
     {"name": "short identifier (3-6 words)", "content": "the actual knowledge (1-3 sentences)", "category": "technical|architectural|behavioral|environmental|procedural", "importance": 1-10, "searchTerms": ["2-3 natural language phrases someone would type to find this later"]}
   ],
   "corrections": [
@@ -96,6 +101,7 @@ RULES:
 - Quality over quantity — skip weak/uncertain extractions.
 - Concepts should be self-contained — readable without the conversation.
 - Corrections are the MOST important signal. Never miss one.
+- Nicknames are retrieval keys: never leave a fact about someone findable only under a nickname. Write the ALIAS concept and keep the facts under the formal name.
 - For artifacts, extract file paths from bash/tool commands in the transcript.
 - Always include at least one project-level concept describing WHAT was worked on and WHY — the kind of thing someone would search for weeks later.`;
 }

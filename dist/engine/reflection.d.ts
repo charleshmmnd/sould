@@ -16,6 +16,7 @@ export interface Reflection {
     severity: string;
     importance: number;
     score?: number;
+    createdAt?: string;
 }
 /**
  * Vector search on the reflection table.

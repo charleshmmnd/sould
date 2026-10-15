@@ -10,6 +10,40 @@ import { swallow } from "../errors.js";
 import { stripStructuralTags } from "../sanitize.js";
 import type { VectorSearchResult } from "../surreal.js";
 import { deduplicateResults, reciprocalRankFusion, rerankResults, type ScoredResult } from "../graph-context.js";
+import { retrieveReflections } from "../reflection.js";
+
+/**
+ * Formal names that alias rows in `texts` point at.
+ *
+ * Extraction writes an alias concept as `ALIAS: "the SEO lady" = Kati Henken
+ * (Integris Design)`; a hand-written memory reads `Alias: "x" / "y" in his
+ * words = Name at Org`. On 2026-10-15 recall("the SEO lady") found nothing
+ * although the Kati Henken facts existed, because the nickname and the name
+ * never shared a row. When a hit is an alias row, recall runs a second search
+ * for the formal name and merges what it finds, marked `via alias`.
+ */
+export function aliasTargetsFrom(texts: string[]): string[] {
+  const out: string[] = [];
+  const re = /\balias(?:es)?\s*:\s*[^=\n]{1,160}?=\s*([^.;\n(]{2,80})/gi;
+  for (const t of texts) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(t)) !== null) {
+      const name = m[1].trim().replace(/\s+/g, " ").replace(/[,:]+$/, "");
+      if (name.length >= 2 && !out.some((o) => o.toLowerCase() === name.toLowerCase())) out.push(name);
+    }
+  }
+  return out.slice(0, 3);
+}
+
+/** A query that already names the target needs no expansion. */
+export function queryNamesTarget(query: string, target: string): boolean {
+  const q = query.toLowerCase();
+  const head = target.toLowerCase().split(/\s+(?:at|of|from)\s+/)[0].trim();
+  return head.length >= 2 && q.includes(head);
+}
+
+type RecallRow = VectorSearchResult & { fused: number; lexical?: boolean; viaAlias?: string };
 
 /**
  * Fuse the dense (vector) and lexical (BM25) arms for a deliberate recall.
@@ -50,7 +84,8 @@ const recallSchema = Type.Object({
     Type.Literal("turns"),
     Type.Literal("artifacts"),
     Type.Literal("skills"),
-  ], { description: "Limit search to a specific memory type. Default: all." })),
+    Type.Literal("reflections"),
+  ], { description: "Limit search to a specific memory type. Default: all (which includes reflections, the lessons written at session end)." })),
   limit: Type.Optional(Type.Number({ description: "Max results to return. Default: 5, max: 15." })),
 });
 
@@ -58,7 +93,7 @@ export function createRecallToolDef(state: GlobalPluginState, session: SessionSt
   return {
     name: "recall",
     label: "Memory Recall",
-    description: "Search your persistent memory graph for past conversations, decisions, concepts, files, and context from previous sessions. Context from past sessions is already auto-injected — check what you have before calling this.",
+    description: "Search your persistent memory graph for past conversations, decisions, concepts, files, reflections (lessons from past sessions) and context from previous sessions. A hit that is an alias row (ALIAS: nickname = Formal Name) is expanded to the formal name automatically. Context from past sessions is already auto-injected; check what you have before calling this.",
     parameters: recallSchema,
     execute: async (_toolCallId: string, params: { query: string; scope?: string; limit?: number }) => {
       const { store, embeddings } = state;
@@ -89,16 +124,51 @@ export function createRecallToolDef(state: GlobalPluginState, session: SessionSt
           concept: scope === "all" || scope === "concepts" ? maxResults : 0,
           memory: scope === "all" || scope === "memories" ? maxResults : 0,
           artifact: scope === "all" || scope === "artifacts" ? maxResults : 0,
+          reflection: scope === "all" || scope === "reflections" ? maxResults : 0,
         };
-
-        const [vectorResults, lexicalResults] = await Promise.all([
-          store.vectorSearch(queryVec, session.sessionId, limits),
+        const wantReflections = limits.reflection > 0;
+        const reflectionRows = async (vec: number[]): Promise<VectorSearchResult[]> => {
+          if (!wantReflections) return [];
+          const refl = await retrieveReflections(vec, maxResults, store, session.projectId || undefined)
+            .catch((e) => { swallow.warn("recall:reflections", e); return []; });
+          return refl.map((r) => ({
+            id: r.id, text: r.text, table: "reflection", score: r.score ?? 0,
+            category: r.category, timestamp: r.createdAt,
+          } as VectorSearchResult));
+        };
+        const lexical = (text: string, vec: number[]) =>
           (typeof store.fulltextSearch === "function"
-            ? store.fulltextSearch(params.query, limits, queryVec)
+            ? store.fulltextSearch(text, limits, vec)
             : Promise.resolve([] as VectorSearchResult[])
-          ).catch((e) => { swallow.warn("recall:fulltext", e); return [] as VectorSearchResult[]; }),
+          ).catch((e) => { swallow.warn("recall:fulltext", e); return [] as VectorSearchResult[]; });
+
+        const [vectorResults, lexicalResults, reflections] = await Promise.all([
+          store.vectorSearch(queryVec, session.sessionId, limits),
+          lexical(params.query, queryVec),
+          reflectionRows(queryVec),
         ]);
-        const results = fuseRecallArms(vectorResults, lexicalResults);
+        const results: RecallRow[] = fuseRecallArms([...vectorResults, ...reflections], lexicalResults);
+
+        // Alias expansion: a nickname query that lands on an alias row pulls in
+        // the formal name's own rows, so "the SEO lady" returns the Kati Henken
+        // facts and not only the row that says who she is.
+        const targets = aliasTargetsFrom(results.slice(0, 8).map((r) => String(r.text ?? "")))
+          .filter((t) => !queryNamesTarget(params.query, t))
+          .slice(0, 2);
+        for (const target of targets) {
+          try {
+            const tVec = await embeddings.embed(target);
+            const [v2, l2, r2] = await Promise.all([
+              store.vectorSearch(tVec, session.sessionId, limits),
+              lexical(target, tVec),
+              reflectionRows(tVec),
+            ]);
+            const have = new Set(results.map((r) => String(r.id)));
+            const extra = fuseRecallArms([...v2, ...r2], l2).filter((r) => !have.has(String(r.id))).slice(0, maxResults);
+            for (const r of extra) results.push({ ...r, viaAlias: target });
+          } catch (e) { swallow("recall:alias", e); }
+        }
+        results.sort((a, b) => b.fused - a.fused);
 
         const topIds = results
           .slice(0, Math.min(maxResults, 8))
@@ -124,6 +194,7 @@ export function createRecallToolDef(state: GlobalPluginState, session: SessionSt
         // Candidates go to dedup and the cross-encoder in FUSED order, so an
         // exact-term hit with a low cosine is still inside the reranked window.
         const scored: ScoredResult[] = results.map((r) => ({ ...r, finalScore: r.score ?? 0 }));
+        const aliasOf = new Map(results.filter((r) => r.viaAlias).map((r) => [String(r.id), r.viaAlias as string]));
         const deduped = deduplicateResults(scored);
         const reranked = await rerankResults(deduped, params.query);
         // When the cross-encoder did not run (five or fewer candidates, model
@@ -141,10 +212,13 @@ export function createRecallToolDef(state: GlobalPluginState, session: SessionSt
         }
 
         const formatted = all.map((r, i) => {
-          const tag = r.table === "turn" ? `[${r.role ?? "turn"}]` : `[${r.table}]`;
+          const tag = r.table === "turn" ? `[${r.role ?? "turn"}]`
+            : r.table === "reflection" ? `[reflection/${r.category ?? "lesson"}]`
+            : `[${r.table}]`;
           const time = r.timestamp ? ` (${new Date(r.timestamp).toLocaleDateString()})` : "";
           const score = ` score:${r.finalScore.toFixed(2)}`;
-          return `${i + 1}. ${tag}${time}${score}\n   ${stripStructuralTags((r.text ?? "").slice(0, 300))}`;
+          const via = aliasOf.has(String(r.id)) ? ` (via alias: ${aliasOf.get(String(r.id))})` : "";
+          return `${i + 1}. ${tag}${time}${score}${via}\n   ${stripStructuralTags((r.text ?? "").slice(0, 300))}`;
         }).join("\n\n");
 
         const neighborBlock = neighborList.length > 0

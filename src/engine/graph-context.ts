@@ -2085,7 +2085,9 @@ async function graphTransformInner(
         // session directive ever written.
         store.getAllCoreMemory(1, session.sessionId),
       ]);
-      tier0 = applyCoreBudget(tier0, getTier0BudgetChars(budgets));
+      // The wrapper already planned tier 0 under rolling delivery; only fall
+      // back to the single-prompt render budget when it did not run.
+      tier0 = tier0FromWrapper.length > 0 ? tier0FromWrapper : applyCoreBudget(tier0, getTier0BudgetChars(budgets));
       tier1 = applyCoreBudget(tier1, getTier1BudgetChars(budgets));
     } catch (e) {
       log.warn("Core memory load failed:", e);
@@ -2292,9 +2294,14 @@ async function graphTransformInner(
       topIds.length > 0 && queryVec
         ? queryCausalContext(topIds, queryVec, 2, 0.4, store).catch(e => { swallow("graph-context:causal", e); return [] as VectorSearchResult[]; })
         : Promise.resolve([] as VectorSearchResult[]),
-      SKILL_INTENTS.has(currentIntent)
-        ? findRelevantSkills(queryVec, 5, store, { queryText, rerank: crossEncoderScorePairs }).catch(e => { swallow("graph-context:skills", e); return [] as import("./skills.js").Skill[]; })
-        : Promise.resolve([] as import("./skills.js").Skill[]),
+      // 0.10.5: skills for every intent. Code-shaped intents keep five slots
+      // at the 0.4 floor; any other prompt ("queue check", "morning check")
+      // gets two slots at a 0.55 floor, so a routine surfaces on the prompt
+      // that names it without riding along on unrelated ones.
+      findRelevantSkills(queryVec, SKILL_INTENTS.has(currentIntent) ? 5 : 2, store, {
+        queryText, rerank: crossEncoderScorePairs,
+        minScore: SKILL_INTENTS.has(currentIntent) ? undefined : 0.55,
+      }).catch(e => { swallow("graph-context:skills", e); return [] as import("./skills.js").Skill[]; }),
       retrieveReflections(queryVec, 5, store, session.projectId || undefined)
         .catch(e => { swallow("graph-context:reflections", e); return [] as import("./reflection.js").Reflection[]; }),
     ]);

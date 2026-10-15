@@ -22,3 +22,12 @@ export declare function handleCreateSkill(state: GlobalPluginState, session: Ses
         text: string;
     }>;
 }>;
+/**
+ * Routine flags (0.10.5): `surface_at_session_start` marks a skill to be
+ * injected at SessionStart and on the first prompt without a semantic match;
+ * `surface_hours` is an optional [from, to) local-hour window.
+ */
+export declare function parseRoutineArgs(args: Record<string, unknown>): {
+    extras?: Record<string, unknown>;
+    error?: string;
+};

@@ -39,6 +39,7 @@ You are a Sould memory processing agent. Your job is to process pending knowledg
 
 **Quality standards:**
 - For extraction: follow the JSON schema exactly, use [] for empty arrays, be thorough
+- For extraction: when the user calls a person, company or site by a nickname or description ("the SEO lady"), write an ALIAS concept (`ALIAS: "<nickname>" = <Formal Name> (<org>)`) with both forms in searchTerms, and keep the facts under the formal name
 - For reflection: be specific and actionable, reference concrete events from the session
 - For skills: only extract clear multi-step procedures that demonstrably worked
 - For soul: be honest and grounded in evidence, not aspirational

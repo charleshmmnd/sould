@@ -54,6 +54,10 @@ export declare function shouldRecordSkillOutcome(engagement: number | null, tool
     success: boolean;
 } | null;
 export interface SkillRetrievalOpts {
+    /** Relevance floor on raw cosine (default 0.4). Callers outside the
+     *  code-shaped intents pass a higher floor so a routine like a morning
+     *  check surfaces on "queue check" but not on every unrelated prompt. */
+    minScore?: number;
     /** The user's prompt text — the cross-encoder anchor. */
     queryText?: string;
     /** Cross-encoder scorer, injected to avoid a circular import (graph-context
@@ -81,3 +85,20 @@ export declare function formatSkillContext(skills: Skill[]): string;
  * Record skill outcome when a retrieved skill is used in a turn.
  */
 export declare function recordSkillOutcome(skillId: string, success: boolean, durationMs: number, store: SurrealStore): Promise<void>;
+export interface RoutineSkill {
+    id: string;
+    name: string;
+    description: string;
+    steps: SkillStep[];
+    preconditions?: string;
+    surfaceHours?: [number, number];
+}
+/** Pure: which flagged routines are due at `localHour`. `surface_hours` is a
+ *  half-open [from, to) window in local hours; a window that wraps midnight
+ *  ([22, 6)) is honoured; no window means always. */
+export declare function selectDueRoutines(rows: RoutineSkill[], localHour: number): RoutineSkill[];
+/** Flagged routines that are due now. Read-only; failures return []. */
+export declare function findDueRoutines(store: SurrealStore | undefined, now?: Date): Promise<RoutineSkill[]>;
+/** Compact block for SessionStart and the first prompt. Kept short so it sits
+ *  inside the harness inline preview even when the wakeup text is long. */
+export declare function formatRoutineContext(routines: RoutineSkill[]): string;

@@ -1,41 +1,56 @@
 /**
- * Tier-0 admission: does the budget check blame the right entry, and is it
- * reachable from every path that changes tier-0 cost?
+ * Tier-0 admission under the rolling delivery model (0.10.5).
  *
- * Regression context: admission compared the drop set of `existing +
- * candidate` against nothing at all. Tier 0 can already be over budget when a
- * write arrives — cognitive-bootstrap.ts, hooks/profile.ts and soul.ts all
- * create tier-0 rows without passing through this tool — and in that state
- * every add was refused with a `would_evict` naming entries that had already
- * stopped loading. One pre-existing overflow closed tier 0 to writes forever,
- * with a reason that was not true. Separately, only `add` was checked, so the
- * same budget was bypassable by adding a short entry and updating it long.
+ * Regression context: on 2026-10-15 the core_memory tool refused a short,
+ * high-priority rule because 35 active entries already summed past the old
+ * single-prompt render budget (about 22 K chars of model context). Since 0.10.1
+ * the hook path delivers directives in full once per session, in priority
+ * order, in batches bounded by the harness inline ceiling (`planTier0Delivery`),
+ * so nothing is evicted and that budget was no longer what the renderer
+ * enforced. Admission now measures what the delivery path measures: the
+ * length of the full cycle in prompts, and whether the entry itself fits the
+ * per-item cap. The soul rows (15 K to 33 K chars each on a mature graph) are
+ * windowed on delivery and must not count at their stored length.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
   createCoreMemoryToolDef,
   checkTier0Admission,
+  tier0CyclePrompts,
+  tier0DeliveryChars,
+  MAX_TIER0_CYCLE_PROMPTS,
 } from "../src/engine/tools/core-memory.js";
 import {
-  applyCoreBudgetVerbose,
-  calcBudgets,
-  getTier0BudgetChars,
-  getTier1BudgetChars,
-  DEFAULT_CONTEXT_WINDOW,
-} from "../src/engine/graph-context.js";
+  resolveHookInlineMaxChars,
+  tier0FullBudgetChars,
+  TIER0_FULL_ITEM_CAP,
+  TIER0_SOUL_WINDOW_CHARS,
+} from "../src/engine/inline-budget.js";
 import { GlobalPluginState, SessionState } from "../src/engine/state.js";
 import type { CoreMemoryEntry } from "../src/engine/surreal.js";
 
-const TIER0_BUDGET = getTier0BudgetChars(calcBudgets(DEFAULT_CONTEXT_WINDOW));
+const BUDGET = tier0FullBudgetChars(resolveHookInlineMaxChars());
 
-function entry(id: string, priority: number, chars: number, tier = 0): CoreMemoryEntry {
-  return { id, text: "x".repeat(chars), category: "rules", priority, tier, active: true };
+function entry(id: string, priority: number, chars: number, tier = 0, category = "rules"): CoreMemoryEntry {
+  return { id, text: "x".repeat(chars), category, priority, tier, active: true };
 }
 
-/** A tier-0 set big enough that the renderer is already dropping entries. */
-function overflowingSet(): CoreMemoryEntry[] {
+/** The live shape that was refused: 32 rules of 300 to 2,100 chars plus three
+ *  soul sections, well past the old render budget. */
+function liveLikeSet(): CoreMemoryEntry[] {
   const rows: CoreMemoryEntry[] = [];
-  for (let i = 0; i < 40; i++) rows.push(entry(`core_memory:pre${i}`, 60, 700));
+  for (let i = 0; i < 32; i++) rows.push(entry(`core_memory:rule${i}`, 100 - i, 300 + (i * 57) % 1800));
+  rows.push(entry("core_memory:soul1", 90, 33_535, 0, "soul"));
+  rows.push(entry("core_memory:soul2", 88, 19_040, 0, "soul"));
+  rows.push(entry("core_memory:soul3", 85, 28_509, 0, "soul"));
+  return rows;
+}
+
+/** Enough 700-char rules to push the cycle past the limit. */
+function overlongCycleSet(): CoreMemoryEntry[] {
+  const rows: CoreMemoryEntry[] = [];
+  const perPrompt = Math.floor(BUDGET / 706);
+  for (let i = 0; i < perPrompt * (MAX_TIER0_CYCLE_PROMPTS + 1); i++) rows.push(entry(`core_memory:many${i}`, 60, 700));
   return rows;
 }
 
@@ -64,188 +79,165 @@ function makeTool(rows: CoreMemoryEntry[], onUpdate?: (f: Record<string, unknown
 
 const textOf = (r: { content: { text: string }[] }) => r.content[0].text;
 
-describe("checkTier0Admission — pre-existing overflow is not blamed on the candidate", () => {
-  it("does not refuse when every dropped entry was already being dropped", () => {
-    const existing = overflowingSet();
-    const baseline = applyCoreBudgetVerbose([...existing], TIER0_BUDGET);
-    expect(baseline.dropped.length).toBeGreaterThan(0); // precondition: already broken
+describe("tier0DeliveryChars counts what delivery sends", () => {
+  it("a soul row costs its window, not its stored length", () => {
+    expect(tier0DeliveryChars(entry("s", 90, 33_535, 0, "soul"))).toBe(TIER0_SOUL_WINDOW_CHARS + 6);
+  });
+  it("a rule is capped at the per-item cap", () => {
+    expect(tier0DeliveryChars(entry("r", 90, 50_000))).toBe(TIER0_FULL_ITEM_CAP + 6);
+    expect(tier0DeliveryChars(entry("r", 90, 300))).toBe(306);
+  });
+});
 
-    // A p99 candidate sorts above the p60 incumbents, so it displaces nobody
-    // that was still loading — it consumes slack the tail was never reaching.
-    const v = checkTier0Admission(existing, entry("(pending admission)", 99, 20));
+describe("tier0CyclePrompts follows planTier0Delivery", () => {
+  it("one prompt when everything fits", () => {
+    expect(tier0CyclePrompts([entry("a", 90, 100), entry("b", 80, 100)], BUDGET)).toBe(1);
+  });
+  it("grows with the total, highest priority first", () => {
+    const rows = [];
+    for (let i = 0; i < 10; i++) rows.push(entry(`r${i}`, 90, Math.floor(BUDGET / 2)));
+    // Each prompt carries one entry plus a bit; ten entries is at least five prompts.
+    expect(tier0CyclePrompts(rows, BUDGET)).toBeGreaterThanOrEqual(5);
+  });
+  it("zero for an empty tier", () => {
+    expect(tier0CyclePrompts([], BUDGET)).toBe(0);
+  });
+});
+
+describe("checkTier0Admission under rolling delivery", () => {
+  it("admits a short rule into the live-like set that the render budget refused", () => {
+    const v = checkTier0Admission(liveLikeSet(), entry("(pending admission)", 97, 320));
     expect(v.ok).toBe(true);
-    expect(v.evicted).toEqual([]);
-    // …but the pre-existing damage is still reported rather than hidden.
-    expect(v.preExistingDropped.length).toBe(baseline.dropped.length);
+    expect(v.cyclePrompts).toBeLessThanOrEqual(MAX_TIER0_CYCLE_PROMPTS);
+    expect(v.entries).toBe(36);
   });
 
-  it("still refuses when the candidate genuinely displaces a loading entry", () => {
-    // Exactly fills the budget, so anything added must push someone out.
-    const existing: CoreMemoryEntry[] = [];
-    let used = 0;
-    for (let i = 0; used + 706 <= TIER0_BUDGET; i++) {
-      existing.push(entry(`core_memory:fit${i}`, 60, 700));
-      used += 706;
-    }
-    const baseline = applyCoreBudgetVerbose([...existing], TIER0_BUDGET);
-    expect(baseline.dropped).toEqual([]); // precondition: nothing dropped yet
-
-    const v = checkTier0Admission(existing, entry("(pending admission)", 99, 700));
-    expect(v.ok).toBe(false);
-    expect(v.reason).toBe("would_evict");
-    expect(v.evicted.length).toBeGreaterThan(0);
-    expect(v.preExistingDropped).toEqual([]);
+  it("counts soul rows at their window, so three 20 K sections do not close the tier", () => {
+    const rows = liveLikeSet();
+    const v = checkTier0Admission(rows, entry("(pending admission)", 50, 300));
+    const stored = rows.reduce((n, e) => n + e.text.length, 0);
+    expect(stored).toBeGreaterThan(100_000);
+    expect(v.cycleChars).toBe([...rows, entry("(pending admission)", 50, 300)].reduce((n, e) => n + tier0DeliveryChars(e), 0));
+    expect(v.cycleChars).toBeLessThan(stored / 2);
   });
 
-  it("reports budget_full when the candidate cannot fit AFTER its per-item cap", () => {
-    // A single oversized entry is never budget_full on its own — the per-item
-    // cap truncates it to something that trivially fits. budget_full is only
-    // reachable when the tier is genuinely full and the candidate sorts last.
-    const rows: CoreMemoryEntry[] = [];
-    let used = 0;
-    while (used + 706 <= TIER0_BUDGET) {
-      rows.push(entry(`core_memory:f${rows.length}`, 90, 700));
-      used += 706;
-    }
-    const v = checkTier0Admission(rows, entry("(pending admission)", 10, 700));
+  it("refuses an entry longer than the per-item cap, naming the cap", () => {
+    const v = checkTier0Admission([], entry("(pending admission)", 99, TIER0_FULL_ITEM_CAP + 1));
     expect(v.ok).toBe(false);
-    expect(v.reason).toBe("budget_full");
-    expect(v.preExistingDropped).toEqual([]);
+    expect(v.reason).toBe("too_long");
+  });
+
+  it("does not apply the per-item cap to a soul row", () => {
+    const v = checkTier0Admission([], entry("(pending admission)", 90, 30_000, 0, "soul"));
+    expect(v.ok).toBe(true);
+  });
+
+  it("refuses when the full cycle would pass the prompt limit", () => {
+    const v = checkTier0Admission(overlongCycleSet(), entry("(pending admission)", 99, 700));
+    expect(v.ok).toBe(false);
+    expect(v.reason).toBe("cycle_too_long");
+    expect(v.cyclePrompts).toBeGreaterThan(MAX_TIER0_CYCLE_PROMPTS);
   });
 
   it("on update, does not double-count the row being replaced", () => {
-    const existing = [entry("core_memory:a", 90, 2_000), entry("core_memory:b", 60, 700)];
-    // Rewriting :a to the SAME size must be admissible — the old cost is gone.
-    const v = checkTier0Admission(existing, entry("core_memory:a", 90, 2_000), "core_memory:a");
-    expect(v.ok).toBe(true);
+    // A priority no other row has, so the sort order (and so the batch
+    // packing) is identical with the candidate in the old row's place.
+    const existing = [...liveLikeSet(), entry("core_memory:a", 101, 2_000)];
+    const same = checkTier0Admission(existing, entry("core_memory:a", 101, 2_000), "core_memory:a");
+    expect(same.entries).toBe(existing.length);
+    const byPriorityDesc = [...existing].sort((a, b) => (b.priority ?? 50) - (a.priority ?? 50));
+    expect(same.cyclePrompts).toBe(tier0CyclePrompts(byPriorityDesc, BUDGET));
+  });
+
+  it("matches a RecordId-shaped replacingId by String()", () => {
+    const rid = { toString: () => "core_memory:a" } as unknown as string;
+    const existing = [{ ...entry("core_memory:a", 90, 500), id: rid }, entry("core_memory:b", 60, 500)];
+    const v = checkTier0Admission(existing, entry("core_memory:a", 90, 500), "core_memory:a");
+    expect(v.entries).toBe(2);
   });
 });
 
-describe("core_memory add — refusal wording matches what actually happened", () => {
-  it("admits a small high-priority entry into an already-overflowing tier 0, and says so", async () => {
-    const tool = makeTool(overflowingSet());
+describe("core_memory add", () => {
+  it("creates the entry and reports the cycle length", async () => {
+    const tool = makeTool(liveLikeSet());
     const res = await tool.execute("t", { action: "add", tier: 0, text: "short rule", priority: 99 });
     expect((res!.details as { id?: string }).id).toBe("core_memory:new");
+    expect(textOf(res as never)).toMatch(/Tier 0 now 36 entries, \d+ prompts? per full delivery cycle/);
   });
 
-  it("names only newly-evicted entries, and flags pre-existing overflow separately", async () => {
-    // 40 uniform entries against a budget that fits 31: 9 are already dropped.
-    // A p100 add consumes one more slot, so exactly ONE eviction is new.
-    const tool = makeTool(overflowingSet());
-    const res = await tool.execute("t", {
-      action: "add", tier: 0, text: "y".repeat(700), priority: 100,
-    });
-    const d = res!.details as { error: boolean; reason: string; evicted: unknown[] };
-    expect(d.reason).toBe("would_evict");
-    expect(d.evicted).toHaveLength(1);
-    expect(textOf(res as never)).toContain("already over budget before this write");
+  it("refuses an over-cap entry with the shorten advice", async () => {
+    const tool = makeTool([]);
+    const res = await tool.execute("t", { action: "add", tier: 0, text: "y".repeat(TIER0_FULL_ITEM_CAP + 10), priority: 100 });
+    const d = res!.details as { error: boolean; reason: string };
+    expect(d.reason).toBe("too_long");
+    expect(textOf(res as never)).toContain("Shorten it");
+  });
+
+  it("refuses a cycle past the limit and says nothing is evicted", async () => {
+    const tool = makeTool(overlongCycleSet());
+    const res = await tool.execute("t", { action: "add", tier: 0, text: "y".repeat(700), priority: 100 });
+    const d = res!.details as { error: boolean; reason: string; cyclePrompts: number };
+    expect(d.reason).toBe("cycle_too_long");
+    expect(d.cyclePrompts).toBeGreaterThan(MAX_TIER0_CYCLE_PROMPTS);
+    expect(textOf(res as never)).toContain("not evicting anything");
+  });
+
+  it("tier 1 is not cycle-checked", async () => {
+    const tool = makeTool(overlongCycleSet());
+    const res = await tool.execute("t", { action: "add", tier: 1, text: "session rule", priority: 50 });
+    expect((res!.details as { id?: string }).id).toBe("core_memory:new");
   });
 });
 
-describe("core_memory update — routed through the same budget check", () => {
-  it("lets a priority raise through — under two-pass admission it cannot evict", async () => {
-    // Raising p50 -> p100 raises this entry's per-item CAP, but caps are only
-    // paid out of leftover slack (pass 2), never out of another entry's
-    // admission (pass 1). So the raise takes whatever room is spare and stops;
-    // nobody is pushed out, and there is nothing to refuse. Before the
-    // two-pass fix this same setup evicted the tail.
-    const rows = [entry("core_memory:a", 50, 5_000)];
-    let used = 803 + 6;
-    while (used + 706 <= TIER0_BUDGET) {
-      rows.push(entry(`core_memory:f${rows.length}`, 60, 700));
-      used += 706;
-    }
-    expect(applyCoreBudgetVerbose([...rows], TIER0_BUDGET).dropped).toEqual([]);
-
+describe("core_memory update", () => {
+  it("lets a priority raise through, even on a row longer than the cap (it only reorders the cycle)", async () => {
+    const rows = [entry("core_memory:a", 50, 5_000), ...liveLikeSet()];
     const written: Record<string, unknown>[] = [];
     const tool = makeTool(rows, (f) => written.push(f));
     const res = await tool.execute("t", { action: "update", id: "core_memory:a", priority: 100 });
     expect((res!.details as { id?: string }).id).toBe("core_memory:a");
     expect(written).toHaveLength(1);
-
-    // And the raise still evicts nobody once applied.
-    const after = rows.map((r) => (String(r.id) === "core_memory:a" ? { ...r, priority: 100 } : r));
-    expect(applyCoreBudgetVerbose(after, TIER0_BUDGET).dropped).toEqual([]);
   });
 
-  it("still refuses an update that moves a row INTO tier 0 when there is no room", async () => {
-    // The one remaining way an update can cost tier 0 a whole admission slot.
-    const rows: CoreMemoryEntry[] = [];
-    let used = 0;
-    while (used + 706 <= TIER0_BUDGET) {
-      rows.push(entry(`core_memory:f${rows.length}`, 90, 700));
-      used += 706;
-    }
-    rows.push(entry("core_memory:t1row", 10, 700, 1)); // currently tier 1
-
+  it("refuses a rewrite past the per-item cap", async () => {
     const written: Record<string, unknown>[] = [];
-    const tool = makeTool(rows, (f) => written.push(f));
-    const res = await tool.execute("t", { action: "update", id: "core_memory:t1row", tier: 0 });
-    expect((res!.details as { reason?: string }).reason).toBe("budget_full");
+    const tool = makeTool([entry("core_memory:a", 100, 200)], (f) => written.push(f));
+    const res = await tool.execute("t", { action: "update", id: "core_memory:a", text: "z".repeat(50_000) });
+    expect((res!.details as { reason?: string }).reason).toBe("too_long");
     expect(written).toHaveLength(0);
   });
 
-  it("admits an oversized rewrite but the renderer still caps it", async () => {
-    // Documents the real bound: the store keeps the full text, the injected
-    // context never exceeds the per-item cap. An update is not an unbounded
-    // way to blow the budget — it is an unguarded way to evict the tail.
+  it("still refuses an update that moves a row INTO tier 0 when the cycle is at the limit", async () => {
+    const rows = overlongCycleSet();
+    rows.push(entry("core_memory:t1row", 10, 700, 1));
     const written: Record<string, unknown>[] = [];
-    const tool = makeTool([entry("core_memory:a", 100, 200)], (f) => written.push(f));
-    const res = await tool.execute("t", {
-      action: "update", id: "core_memory:a", text: "z".repeat(50_000),
-    });
-    expect((res!.details as { id?: string }).id).toBe("core_memory:a");
-    expect((written[0].text as string).length).toBe(50_000);
-    const rendered = applyCoreBudgetVerbose([entry("core_memory:a", 100, 50_000)], TIER0_BUDGET);
-    expect(rendered.kept[0].text.length).toBeLessThan(3_000);
+    const tool = makeTool(rows, (f) => written.push(f));
+    const res = await tool.execute("t", { action: "update", id: "core_memory:t1row", tier: 0 });
+    expect((res!.details as { reason?: string }).reason).toBe("cycle_too_long");
+    expect(written).toHaveLength(0);
   });
 
-  it("allows a rewrite that stays inside the budget", async () => {
+  it("allows a rewrite inside the cap and reports the cycle", async () => {
     const written: Record<string, unknown>[] = [];
     const tool = makeTool([entry("core_memory:a", 100, 200)], (f) => written.push(f));
-    const res = await tool.execute("t", {
-      action: "update", id: "core_memory:a", text: "z".repeat(1_500),
-    });
+    const res = await tool.execute("t", { action: "update", id: "core_memory:a", text: "z".repeat(1_500) });
     expect((res!.details as { id?: string }).id).toBe("core_memory:a");
     expect((written[0].text as string).length).toBe(1_500);
+    expect(textOf(res as never)).toContain("per full delivery cycle");
   });
 
   it("does not block an update that moves a row OUT of tier 0", async () => {
     const written: Record<string, unknown>[] = [];
     const tool = makeTool([entry("core_memory:a", 100, 200)], (f) => written.push(f));
-    const res = await tool.execute("t", {
-      action: "update", id: "core_memory:a", text: "z".repeat(50_000), tier: 1,
-    });
+    const res = await tool.execute("t", { action: "update", id: "core_memory:a", text: "z".repeat(50_000), tier: 1 });
     expect((res!.details as { id?: string }).id).toBe("core_memory:a");
   });
-
-  it("leaves a priority raise budget-checked too, not just text growth", async () => {
-    // Raising priority raises the entry's own per-item cap, so it can grow the
-    // rendered cost without the text changing at all.
-    const rows = [entry("core_memory:a", 50, 5_000), entry("core_memory:b", 40, 700)];
-    const v = checkTier0Admission(rows, { ...rows[0], priority: 100 }, "core_memory:a");
-    expect(v.usedChars).toBeGreaterThan(
-      applyCoreBudgetVerbose([...rows], TIER0_BUDGET).usedChars,
-    );
-  });
 });
 
-describe("tier 1 shares the priority-scaled cap deliberately", () => {
-  it("gives a p100 session directive the same room a p100 tier-0 directive gets", () => {
-    const t1 = applyCoreBudgetVerbose(
-      [entry("core_memory:t1", 100, 5_000, 1)],
-      getTier1BudgetChars(calcBudgets(DEFAULT_CONTEXT_WINDOW)),
-    );
-    const t0 = applyCoreBudgetVerbose([entry("core_memory:t0", 100, 5_000)], TIER0_BUDGET);
-    expect(t1.kept[0].text.length).toBe(t0.kept[0].text.length);
-    expect(t1.kept[0].text.length).toBeGreaterThan(803); // not the old flat cap
-  });
-
-  it("still holds each tier to its own separate budget", () => {
-    expect(getTier1BudgetChars(calcBudgets(DEFAULT_CONTEXT_WINDOW)))
-      .not.toBe(TIER0_BUDGET);
+describe("core_memory list", () => {
+  it("appends the tier-0 cycle summary", async () => {
+    const tool = makeTool(liveLikeSet());
+    const res = await tool.execute("t", { action: "list" });
+    expect(textOf(res as never)).toMatch(/Tier 0: 35 entries, \d+ prompts per full delivery cycle/);
   });
 });
-
-// Silence unused-import lint if vi is not otherwise referenced.
-void vi;

@@ -405,6 +405,7 @@ export declare class SurrealStore {
         memory?: number;
         artifact?: number;
         skill?: number;
+        reflection?: number;
     }, queryVec?: number[]): Promise<VectorSearchResult[]>;
     graphExpand(nodeIds: string[], queryVec: number[], hops?: number): Promise<VectorSearchResult[]>;
     /** 0.7.121 — counter side-table. The old per-retrieval

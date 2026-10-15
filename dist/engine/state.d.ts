@@ -100,6 +100,8 @@ export declare class SessionState {
     }[];
     /** Previous-session turns already injected this session (cleared by PostCompact). */
     _prevTurnsDelivered?: boolean;
+    /** Routines due at this session's start (0.10.5); re-sent on the first prompt. */
+    _routinesNote?: string;
     /** Prefetch promise for previous-session turns — fires at session start, awaited in ensureRecentTurns. */
     _prevTurnsPrefetch?: Promise<{
         role: string;

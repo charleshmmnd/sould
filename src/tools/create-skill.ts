@@ -33,6 +33,8 @@ export async function handleCreateSkill(
   const preconditions = typeof args.preconditions === "string" ? args.preconditions.trim() : undefined;
   const postconditions = typeof args.postconditions === "string" ? args.postconditions.trim() : undefined;
   const stepsArg = args.steps;
+  const routine = parseRoutineArgs(args);
+  if (routine.error) return errText(routine.error);
 
   if (!name) return errText("Error: `name` is required (kebab-case, matches the slash command).");
   if (!description) return errText("Error: `description` is required. Used for slash-command suggestion and embedding.");
@@ -71,6 +73,7 @@ export async function handleCreateSkill(
       // caused me to wrongly archive 6 legitimate skills earlier this
       // turn — including sould-heal-skill-corruption itself).
       source: "create_skill_tool",
+      extras: routine.extras,
       embeddingText: `${name}: ${description}\n\n${body}`,
       sessionId: session.sessionId,
     },
@@ -88,6 +91,23 @@ export async function handleCreateSkill(
       }, null, 2),
     }],
   };
+}
+
+/**
+ * Routine flags (0.10.5): `surface_at_session_start` marks a skill to be
+ * injected at SessionStart and on the first prompt without a semantic match;
+ * `surface_hours` is an optional [from, to) local-hour window.
+ */
+export function parseRoutineArgs(args: Record<string, unknown>): { extras?: Record<string, unknown>; error?: string } {
+  const extras: Record<string, unknown> = {};
+  if (typeof args.surface_at_session_start === "boolean") extras.surface_at_session_start = args.surface_at_session_start;
+  if (args.surface_hours !== undefined) {
+    const h = args.surface_hours;
+    const ok = Array.isArray(h) && h.length === 2 && h.every((n) => Number.isInteger(n) && n >= 0 && n <= 24);
+    if (!ok) return { error: "Error: `surface_hours` must be [from, to] with integer local hours 0 to 24 (half-open window)." };
+    extras.surface_hours = [Number(h[0]), Number(h[1])];
+  }
+  return { extras: Object.keys(extras).length ? extras : undefined };
 }
 
 function errText(text: string): { content: Array<{ type: "text"; text: string }> } {

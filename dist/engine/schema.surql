@@ -80,6 +80,9 @@ DEFINE INDEX IF NOT EXISTS artifact_fts_idx ON artifact FIELDS description FULLT
 -- skill indexes `description` (short summary), NOT `body`: full skill bodies are
 -- large markdown and a FULLTEXT build over them is slow enough to stall schema-apply.
 DEFINE INDEX IF NOT EXISTS skill_fts_idx ON skill FIELDS description FULLTEXT ANALYZER fts_analyzer BM25;
+-- 0.10.5: reflections (session_review lessons) were injected but not searchable
+-- through recall; the lexical arm needs an index like every other table.
+DEFINE INDEX IF NOT EXISTS reflection_fts_idx ON reflection FIELDS text FULLTEXT ANALYZER fts_analyzer BM25;
 
 -- ============================================================
 -- PILLAR 5: Concept (semantic knowledge nodes)
@@ -629,6 +632,13 @@ DEFINE FIELD IF NOT EXISTS avg_duration_ms ON skill TYPE float DEFAULT 0.0;
 DEFINE FIELD OVERWRITE active ON skill TYPE option<bool> DEFAULT true;
 DEFINE FIELD IF NOT EXISTS superseded_by ON skill TYPE option<record<skill>>;
 DEFINE FIELD IF NOT EXISTS last_used ON skill TYPE option<datetime>;
+-- 0.10.5 routines: a skill flagged surface_at_session_start is injected at
+-- SessionStart and on the first prompt without any semantic match (a
+-- "session start, Thursday morning" query does not land on a morning
+-- LeadForge check by embedding alone). surface_hours = [from, to) local
+-- hours; absent means any hour.
+DEFINE FIELD IF NOT EXISTS surface_at_session_start ON skill TYPE option<bool>;
+DEFINE FIELD IF NOT EXISTS surface_hours ON skill TYPE option<array<int>>;
 DEFINE FIELD IF NOT EXISTS created_at ON skill TYPE datetime DEFAULT time::now();
 DEFINE INDEX IF NOT EXISTS skill_vec_idx ON skill FIELDS embedding HNSW DIMENSION 1024 DIST COSINE TYPE F32 EFC 200 M 16;
 DEFINE INDEX IF NOT EXISTS skill_active_idx ON skill FIELDS active;

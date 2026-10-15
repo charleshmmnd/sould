@@ -186,8 +186,13 @@ This runs silently in the background. Respond to the user normally.
     log.info(`[pending_work] ${pendingCount} items queued for subagent processing`);
   }
 
+  // Routines due at session start ride on the first prompt as well, since the
+  // SessionStart payload is easy to lose (0.10.5).
+  const routinesBlock = session.userTurnCount <= 1 && session._routinesNote
+    ? `\n\n${session._routinesNote}\n`
+    : "";
   const assemble = (ctx: string | undefined) =>
-    wrapMemoryContext([anomalyBlock, ctx, pendingWorkMessage].filter(Boolean).join("") || undefined);
+    wrapMemoryContext([anomalyBlock, routinesBlock, ctx, pendingWorkMessage].filter(Boolean).join("") || undefined);
 
   // 0.10.1: hard ceiling. Anything above the harness inline limit is written
   // to a file with a 2 KB preview and never reaches the model, so a payload

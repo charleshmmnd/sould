@@ -23,6 +23,7 @@ export interface Reflection {
   severity: string;
   importance: number;
   score?: number;
+  createdAt?: string;
 }
 
 // --- Reflection Retrieval ---
@@ -52,7 +53,7 @@ export async function retrieveReflections(
     const bindings: Record<string, unknown> = { vec: queryVec, lim: limit };
     if (projectId) bindings.pid = projectId;
     const rows = await store.queryFirst<any>(
-      `SELECT id, text, category, severity, importance, embedding,
+      `SELECT id, text, category, severity, importance, embedding, created_at,
               vector::similarity::cosine(embedding, $vec) AS score
        FROM reflection
        WHERE embedding != NONE AND array::len(embedding) > 0
@@ -83,6 +84,7 @@ export async function retrieveReflections(
       severity: r.severity ?? "minor",
       importance: Number(r.importance ?? 7.0),
       score: r.score,
+      createdAt: r.created_at ? String(r.created_at) : undefined,
     })).filter(r => r.id);
   } catch (e) {
     swallow.warn("reflection:retrieve", e);
