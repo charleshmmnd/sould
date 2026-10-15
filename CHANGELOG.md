@@ -9,7 +9,7 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 - **Daemon exits left no record in daemon.log.** The graceful-exit reason, the idle reaper firing and the supersede deadline were logged at info level, below the default `warn` threshold, so a daemon that exited and respawned four times in one session left nothing to diagnose from. Those lifecycle lines are now warnings.
 
 ### Tests
-- `test/fix-plugin-cache-prune-2026-10-15.test.ts` (12): version ordering and directory names, both `installed_plugins.json` shapes, live in-use markers, the live 0.10.2 regression leaving 0.10.5 and 0.10.6 alone, the full keep/prune matrix with its warn line, a non-release running version pruning nothing, dry run, a missing cache directory, and the decision pass leaving the disk untouched.
+- `test/fix-plugin-cache-prune-2026-10-15.test.ts` (12): version ordering and directory names, both `installed_plugins.json` shapes, live in-use markers, the incident shape (an old daemon leaving two newer installed copies alone), the full keep/prune matrix with its warn line, a non-release running version pruning nothing, dry run, a missing cache directory, and the decision pass leaving the disk untouched.
 
 ## [0.10.6] - 2026-10-15
 

@@ -155,7 +155,7 @@ function setBootstrapPhase(p: BootstrapPhase, err?: Error): void {
 /** Remove older copies of the plugin from Claude Code's cache. Guarded in
  *  plugin-cache-prune.ts: never a version at or above this daemon's, never
  *  the install path Claude Code recorded, never a copy a live session holds.
- *  Until 0.10.6 this deleted every other version, newer ones included, which
+ *  Before 0.10.7 the daemon deleted every other copy, newer ones included, which
  *  on 2026-10-15 removed a freshly installed 0.10.6 before it ever loaded. */
 function pruneStalePluginCache(): void {
   prunePluginCache({

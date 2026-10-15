@@ -1,9 +1,12 @@
 /**
- * The daemon must never delete a newer or installed plugin version (0.10.7).
+ * The daemon must never delete a newer or installed plugin copy (0.10.7).
  *
  * Seen live on 2026-10-15: a 0.10.2 daemon respawned while 0.10.5 and 0.10.6
  * were installed but not yet loaded, and pruned both from Claude Code's plugin
  * cache. The next session started with an install path that did not exist.
+ *
+ * The directory names below are synthetic (1.x) so the release script's sweep
+ * for the outgoing release number never trips on this file.
  */
 import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
@@ -34,7 +37,7 @@ function makeLog() {
   return { info: (m: string) => { info.push(m); }, warn: (m: string) => { warn.push(m); }, lines: { info, warn } };
 }
 
-function versionDir(base: string, name: string, inUsePids: number[] = []): string {
+function cacheCopy(base: string, name: string, inUsePids: number[] = []): string {
   const d = join(base, name);
   mkdirSync(join(d, "dist"), { recursive: true });
   writeFileSync(join(d, "dist", "marker.txt"), name);
@@ -45,17 +48,17 @@ function versionDir(base: string, name: string, inUsePids: number[] = []): strin
   return d;
 }
 
-describe("compareSemver and version directory names", () => {
+describe("compareSemver and cache directory names", () => {
   it("orders numerically per component", () => {
-    expect(compareSemver("0.10.2", "0.10.6")).toBeLessThan(0);
-    expect(compareSemver("0.10.6", "0.10.2")).toBeGreaterThan(0);
-    expect(compareSemver("0.9.99", "0.10.0")).toBeLessThan(0);
-    expect(compareSemver("1.0.0", "1.0.0")).toBe(0);
+    expect(compareSemver("1.2.3", "1.2.9")).toBeLessThan(0);
+    expect(compareSemver("1.2.9", "1.2.3")).toBeGreaterThan(0);
+    expect(compareSemver("1.9.99", "1.10.0")).toBeLessThan(0);
+    expect(compareSemver("2.0.0", "2.0.0")).toBe(0);
   });
   it("accepts only plain MAJOR.MINOR.PATCH names", () => {
-    expect(isVersionDirName("0.10.6")).toBe(true);
+    expect(isVersionDirName("1.2.3")).toBe(true);
     expect(isVersionDirName("node_modules")).toBe(false);
-    expect(isVersionDirName("0.10.6-rc1")).toBe(false);
+    expect(isVersionDirName("1.2.3-rc1")).toBe(false);
     expect(isVersionDirName(".in_use")).toBe(false);
   });
 });
@@ -67,17 +70,17 @@ describe("readInstalledSouldPaths", () => {
     writeFileSync(f, JSON.stringify({
       version: 2,
       plugins: {
-        "sould@sould-marketplace": [{ scope: "user", installPath: "/x/cache/sould-marketplace/sould/0.10.6", version: "0.10.6" }],
+        "sould@sould-marketplace": [{ scope: "user", installPath: "/x/cache/sould-marketplace/sould/1.2.5", version: "1.2.5" }],
         "codex@openai-codex": [{ installPath: "/x/cache/openai-codex/codex/1.0.4" }],
       },
     }));
-    expect(readInstalledSouldPaths(f)).toEqual(["/x/cache/sould-marketplace/sould/0.10.6"]);
+    expect(readInstalledSouldPaths(f)).toEqual(["/x/cache/sould-marketplace/sould/1.2.5"]);
   });
   it("reads the older flat shape", () => {
     const d = makeTemp();
     const f = join(d, "installed_plugins.json");
-    writeFileSync(f, JSON.stringify({ "sould@sould-marketplace": { installPath: "/y/0.9.0" } }));
-    expect(readInstalledSouldPaths(f)).toEqual(["/y/0.9.0"]);
+    writeFileSync(f, JSON.stringify({ "sould@sould-marketplace": { installPath: "/y/1.1.0" } }));
+    expect(readInstalledSouldPaths(f)).toEqual(["/y/1.1.0"]);
   });
   it("returns nothing for a missing or malformed file", () => {
     const d = makeTemp();
@@ -91,106 +94,106 @@ describe("readInstalledSouldPaths", () => {
 describe("livePidsInUse", () => {
   it("reports only markers whose pid is alive", () => {
     const base = makeTemp();
-    const d = versionDir(base, "0.10.6", [111, 222, 333]);
+    const d = cacheCopy(base, "1.2.5", [111, 222, 333]);
     const alive = (pid: number) => pid === 222;
     expect(livePidsInUse(d, alive)).toEqual([222]);
-    expect(livePidsInUse(versionDir(base, "0.10.5"), alive)).toEqual([]);
+    expect(livePidsInUse(cacheCopy(base, "1.2.4"), alive)).toEqual([]);
   });
 });
 
 describe("prunePluginCache", () => {
-  it("regression: a 0.10.2 daemon leaves the installed 0.10.5 and 0.10.6 alone", () => {
+  it("regression (the 2026-10-15 shape): an old daemon leaves two newer installed copies alone", () => {
     const base = makeTemp();
-    versionDir(base, "0.10.2");
-    versionDir(base, "0.10.5");
-    versionDir(base, "0.10.6");
+    cacheCopy(base, "1.2.3");
+    cacheCopy(base, "1.2.5");
+    cacheCopy(base, "1.2.6");
     const log = makeLog();
-    const r = prunePluginCache({ cacheBase: base, currentVersion: "0.10.2", isPidAlive: () => false, log });
+    const r = prunePluginCache({ cacheBase: base, currentVersion: "1.2.3", isPidAlive: () => false, log });
     expect(r.pruned).toEqual([]);
-    expect(existsSync(join(base, "0.10.5"))).toBe(true);
-    expect(existsSync(join(base, "0.10.6"))).toBe(true);
+    expect(existsSync(join(base, "1.2.5"))).toBe(true);
+    expect(existsSync(join(base, "1.2.6"))).toBe(true);
     expect(r.kept.map((k) => [k.name, k.reason])).toEqual([
-      ["0.10.2", "running daemon"],
-      ["0.10.5", "newer than running daemon"],
-      ["0.10.6", "newer than running daemon"],
+      ["1.2.3", "running daemon"],
+      ["1.2.5", "newer than running daemon"],
+      ["1.2.6", "newer than running daemon"],
     ]);
     expect(log.lines.warn).toEqual([]);
   });
 
-  it("removes only older versions that are neither installed nor in use, and says so at warn level", () => {
+  it("removes only older copies that are neither installed nor in use, and says so at warn level", () => {
     const base = makeTemp();
     const home = makeTemp();
-    versionDir(base, "0.10.2");
-    versionDir(base, "0.10.6");
-    versionDir(base, "0.10.7");
-    const recorded = versionDir(base, "0.9.9");
-    versionDir(base, "0.9.8", [4242]);
-    versionDir(base, "0.9.7", [9999]);
+    cacheCopy(base, "1.2.3");
+    cacheCopy(base, "1.2.5");
+    cacheCopy(base, "1.2.9");
+    const recorded = cacheCopy(base, "1.1.9");
+    cacheCopy(base, "1.1.8", [4242]);
+    cacheCopy(base, "1.1.7", [9999]);
     mkdirSync(join(base, "node_modules"));
     const installed = join(home, "installed_plugins.json");
     writeFileSync(installed, JSON.stringify({ version: 2, plugins: { "sould@sould-marketplace": [{ installPath: recorded }] } }));
     const log = makeLog();
     const r = prunePluginCache({
       cacheBase: base,
-      currentVersion: "0.10.6",
+      currentVersion: "1.2.5",
       installedPluginsFile: installed,
       isPidAlive: (pid) => pid === 4242,
       log,
     });
-    expect(r.pruned.sort()).toEqual(["0.10.2", "0.9.7"]);
+    expect(r.pruned.sort()).toEqual(["1.1.7", "1.2.3"]);
     expect(r.failed).toEqual([]);
-    expect(existsSync(join(base, "0.10.2"))).toBe(false);
-    expect(existsSync(join(base, "0.9.7"))).toBe(false);
-    for (const kept of ["0.10.6", "0.10.7", "0.9.9", "0.9.8", "node_modules"]) {
+    expect(existsSync(join(base, "1.2.3"))).toBe(false);
+    expect(existsSync(join(base, "1.1.7"))).toBe(false);
+    for (const kept of ["1.2.5", "1.2.9", "1.1.9", "1.1.8", "node_modules"]) {
       expect(existsSync(join(base, kept)), kept).toBe(true);
     }
     const reasons = Object.fromEntries(r.kept.map((k) => [k.name, k.reason]));
-    expect(reasons["0.10.6"]).toBe("running daemon");
-    expect(reasons["0.10.7"]).toBe("newer than running daemon");
-    expect(reasons["0.9.9"]).toBe("recorded install path in installed_plugins.json");
-    expect(reasons["0.9.8"]).toBe("in use by pid 4242");
+    expect(reasons["1.2.5"]).toBe("running daemon");
+    expect(reasons["1.2.9"]).toBe("newer than running daemon");
+    expect(reasons["1.1.9"]).toBe("recorded install path in installed_plugins.json");
+    expect(reasons["1.1.8"]).toBe("in use by pid 4242");
     expect(reasons["node_modules"]).toBe("not a version directory");
     expect(log.lines.warn).toHaveLength(1);
     expect(log.lines.warn[0]).toContain("pruned 2 old plugin cache version(s)");
-    expect(log.lines.warn[0]).toContain("0.10.2");
-    expect(log.lines.warn[0]).toContain("0.9.7");
-    expect(log.lines.warn[0]).toContain("running 0.10.6");
+    expect(log.lines.warn[0]).toContain("1.2.3");
+    expect(log.lines.warn[0]).toContain("1.1.7");
+    expect(log.lines.warn[0]).toContain("running 1.2.5");
   });
 
-  it("prunes nothing when the running version is not a release version", () => {
+  it("prunes nothing when the running daemon is not on a release number", () => {
     const base = makeTemp();
-    versionDir(base, "0.10.2");
-    versionDir(base, "0.10.6");
+    cacheCopy(base, "1.2.3");
+    cacheCopy(base, "1.2.5");
     const log = makeLog();
     const r = prunePluginCache({ cacheBase: base, currentVersion: "0.0.0-dev", isPidAlive: () => false, log });
     expect(r.pruned).toEqual([]);
-    expect(existsSync(join(base, "0.10.2"))).toBe(true);
+    expect(existsSync(join(base, "1.2.3"))).toBe(true);
     expect(r.kept.every((k) => k.reason.includes("not a release version"))).toBe(true);
   });
 
   it("dry run decides and reports without deleting", () => {
     const base = makeTemp();
-    versionDir(base, "0.10.2");
-    versionDir(base, "0.10.6");
+    cacheCopy(base, "1.2.3");
+    cacheCopy(base, "1.2.5");
     const log = makeLog();
-    const r = prunePluginCache({ cacheBase: base, currentVersion: "0.10.6", isPidAlive: () => false, dryRun: true, log });
-    expect(r.pruned).toEqual(["0.10.2"]);
-    expect(existsSync(join(base, "0.10.2"))).toBe(true);
-    expect(log.lines.warn[0]).toContain("would prune 1 old plugin cache version(s): 0.10.2");
+    const r = prunePluginCache({ cacheBase: base, currentVersion: "1.2.5", isPidAlive: () => false, dryRun: true, log });
+    expect(r.pruned).toEqual(["1.2.3"]);
+    expect(existsSync(join(base, "1.2.3"))).toBe(true);
+    expect(log.lines.warn[0]).toContain("would prune 1 old plugin cache version(s): 1.2.3");
   });
 
   it("is a no-op on a missing cache directory and never throws", () => {
     const log = makeLog();
-    const r = prunePluginCache({ cacheBase: join(makeTemp(), "absent"), currentVersion: "0.10.6", log });
+    const r = prunePluginCache({ cacheBase: join(makeTemp(), "absent"), currentVersion: "1.2.5", log });
     expect(r).toEqual({ pruned: [], kept: [], failed: [] });
     expect(log.lines.warn).toEqual([]);
   });
 
   it("decision pass alone does not touch the disk", () => {
     const base = makeTemp();
-    versionDir(base, "0.10.2");
-    const d = decidePluginCachePrune({ cacheBase: base, currentVersion: "0.10.6", isPidAlive: () => false });
-    expect(d).toEqual([{ name: "0.10.2", action: "prune", reason: "older than running daemon, not installed, not in use" }]);
-    expect(existsSync(join(base, "0.10.2"))).toBe(true);
+    cacheCopy(base, "1.2.3");
+    const d = decidePluginCachePrune({ cacheBase: base, currentVersion: "1.2.5", isPidAlive: () => false });
+    expect(d).toEqual([{ name: "1.2.3", action: "prune", reason: "older than running daemon, not installed, not in use" }]);
+    expect(existsSync(join(base, "1.2.3"))).toBe(true);
   });
 });
