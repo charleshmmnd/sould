@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.7] - 2026-10-15
+
 ### Fixed
 - **The daemon deleted newer plugin versions from Claude Code's cache.** `pruneStalePluginCache` removed every directory under `~/.claude/plugins/cache/sould-marketplace/sould/` except the running daemon's own version, newer ones included. On 2026-10-15, 0.10.5 and 0.10.6 were installed while a 0.10.2 daemon was running; the daemon respawned before Claude Code restarted and deleted both, so the next session started with an install path that did not exist: the MCP server never loaded, the old hooks respawned another 0.10.2 daemon, and `daemon.pid` kept reading 0.10.2 after the restart that was meant to apply the upgrade. The prune now lives in `src/daemon/plugin-cache-prune.ts` and removes a directory only when its name is a plain version strictly lower than the running daemon's, it is not an install path recorded in `installed_plugins.json`, and no live process holds a marker in its `.in_use` directory. Each removal is logged at warn level so it reaches `daemon.log` under the default log level.
 - **Daemon exits left no record in daemon.log.** The graceful-exit reason, the idle reaper firing and the supersede deadline were logged at info level, below the default `warn` threshold, so a daemon that exited and respawned four times in one session left nothing to diagnose from. Those lifecycle lines are now warnings.
