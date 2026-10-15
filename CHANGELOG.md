@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-10-15
+
 ### Fixed
 - **Harness notifications were user turns.** Task notifications, subagent hand-backs, the "[SYSTEM NOTIFICATION - NOT USER INPUT]" banner and the /loop sentinel arrive through UserPromptSubmit. They were ingested as user turns and retrieved against, so retrieval keyed off tool ids and temp paths and returned noise, and the stored notifications came back on later real prompts as 70%-relevant "past turns" (340 of 2,848 user turns on the live graph). `isHarnessNotification` (positional: the prompt begins with the marker) now skips ingest and injection for them, keeps `lastUserText` on the last real prompt, and `isEchoOfCurrentPrompt` filters already-stored ones out of retrieval. The live rows were soft-pruned (`prune_reason = harness_notification`).
 
