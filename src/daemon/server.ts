@@ -650,7 +650,7 @@ export class DaemonServer {
       this.idleTimer = null;
       // Re-check at fire time — race-safe against a connect that just landed.
       if (this.clients.size === 0 && this.opts.onIdleReap) {
-        this.opts.log.info(`[daemon] idle reaper firing: zero clients for ${ms}ms, exiting`);
+        this.opts.log.warn(`[daemon] idle reaper firing: zero clients for ${ms}ms, exiting`);
         try { this.opts.onIdleReap(); } catch (e) {
           this.opts.log.warn(`[daemon] onIdleReap callback threw: ${(e as Error).message}`);
         }
@@ -955,7 +955,7 @@ export class DaemonServer {
     this.pendingSupersede = true;
     const graceMs = this.opts.supersedeGraceMs ?? 0;
     if (graceMs > 0 && this.opts.onSupersedeDeadline && !this.supersedeGraceTimer) {
-      this.opts.log.info(`[daemon] supersede flagged — graceful exit on last-client-disconnect, bounded by a ${Math.round(graceMs / 1000)}s grace window`);
+      this.opts.log.warn(`[daemon] supersede flagged: graceful exit on last-client-disconnect, bounded by a ${Math.round(graceMs / 1000)}s grace window`);
       this.supersedeGraceTimer = setTimeout(() => {
         this.supersedeGraceTimer = null;
         // Re-check at fire time: the graceful path may have already exited the
@@ -964,7 +964,7 @@ export class DaemonServer {
         if (this.supersedeFired) return;
         this.pruneDeadClients();
         this.supersedeFired = true;
-        this.opts.log.info(`[daemon] supersede grace window (${graceMs}ms) elapsed with ${this.clients.size} client(s) still attached — draining and exiting for code refresh`);
+        this.opts.log.warn(`[daemon] supersede grace window (${graceMs}ms) elapsed with ${this.clients.size} client(s) still attached, draining and exiting for code refresh`);
         try { this.opts.onSupersedeDeadline!(); } catch (e) {
           this.opts.log.warn(`[daemon] onSupersedeDeadline callback threw: ${(e as Error).message}`);
         }

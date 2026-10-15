@@ -22,11 +22,12 @@
  * everything else returns a "not yet implemented" error. Subsequent
  * commits migrate tool/hook handlers from the legacy mcp-server.ts.
  */
-import { writeFileSync, unlinkSync, existsSync, readFileSync, mkdirSync, readdirSync, rmSync, openSync, writeSync, closeSync, statSync, constants as fsConstants } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync, readFileSync, mkdirSync, openSync, writeSync, closeSync, statSync, constants as fsConstants } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir, platform } from "node:os";
 import { randomBytes } from "node:crypto";
 import { applyGpuPin } from "./gpu-pin.js";
+import { prunePluginCache, defaultPluginCacheBase, defaultInstalledPluginsFile, compareSemver } from "./plugin-cache-prune.js";
 import { resolveTcpPort, resolveDaemonTokenPath } from "../mcp-client/daemon-spawn.js";
 import { ensureEdgeIndexes } from "../engine/edge-indexes.js";
 import { runBootstrapMaintenance } from "../engine/maintenance.js";
@@ -85,21 +86,6 @@ const DAEMON_VERSION = (() => {
     catch { }
     return "0.0.0";
 })();
-/** Lex-compare dotted versions ("0.7.5" vs "0.7.22"). Returns negative/0/positive
- *  the way Array.sort expects. Skips a full semver dep — sould's versions
- *  are always plain MAJOR.MINOR.PATCH, no prereleases on the daemon channel. */
-function compareSemver(a, b) {
-    const pa = a.split(".").map((s) => Number(s) || 0);
-    const pb = b.split(".").map((s) => Number(s) || 0);
-    const n = Math.max(pa.length, pb.length);
-    for (let i = 0; i < n; i++) {
-        const av = pa[i] ?? 0;
-        const bv = pb[i] ?? 0;
-        if (av !== bv)
-            return av - bv;
-    }
-    return 0;
-}
 let bootstrapPhase = "starting";
 let bootstrapError = null;
 const startedAt = Date.now();
@@ -153,30 +139,18 @@ function setBootstrapPhase(p, err) {
         bootstrapError = { message: err.message, stack: err.stack };
     }
 }
+/** Remove older copies of the plugin from Claude Code's cache. Guarded in
+ *  plugin-cache-prune.ts: never a version at or above this daemon's, never
+ *  the install path Claude Code recorded, never a copy a live session holds.
+ *  Until 0.10.6 this deleted every other version, newer ones included, which
+ *  on 2026-10-15 removed a freshly installed 0.10.6 before it ever loaded. */
 function pruneStalePluginCache() {
-    const cacheBase = join(homedir(), ".claude", "plugins", "cache", "sould-marketplace", "sould");
-    if (!existsSync(cacheBase))
-        return;
-    try {
-        const entries = readdirSync(cacheBase, { withFileTypes: true });
-        const stale = entries.filter(e => e.isDirectory() && e.name !== DAEMON_VERSION);
-        if (stale.length === 0)
-            return;
-        for (const dir of stale) {
-            const full = join(cacheBase, dir.name);
-            try {
-                rmSync(full, { recursive: true, force: true });
-                log.info(`[daemon] pruned stale plugin cache: ${dir.name}`);
-            }
-            catch (e) {
-                log.warn(`[daemon] failed to prune ${dir.name}: ${e.message}`);
-            }
-        }
-        log.info(`[daemon] pruned ${stale.length} stale version(s) from plugin cache, kept ${DAEMON_VERSION}`);
-    }
-    catch (e) {
-        log.warn(`[daemon] plugin cache prune failed: ${e.message}`);
-    }
+    prunePluginCache({
+        cacheBase: defaultPluginCacheBase(),
+        currentVersion: DAEMON_VERSION,
+        installedPluginsFile: defaultInstalledPluginsFile(),
+        log: { info: (m) => log.info(m), warn: (m) => log.warn(m) },
+    });
 }
 /** Initialize the daemon's state stack — bootstrap, SurrealStore, EmbeddingService,
  *  GlobalPluginState. Equivalent to mcp-server.ts:initialize() but hosted in the
@@ -857,7 +831,7 @@ async function main() {
         if (shuttingDown)
             return new Promise(() => { });
         shuttingDown = true;
-        log.info(`[daemon] graceful exit: ${reason}`);
+        log.warn(`[daemon] graceful exit: ${reason}`);
         // 0.7.118 shutdown watchdog: a daemon holding a zombie DB connection
         // ignored SIGTERM in production — graceful close awaited store.close()
         // on a WS whose operations never settle, so the process never exited
