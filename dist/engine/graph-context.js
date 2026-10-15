@@ -15,6 +15,7 @@ import { stageRetrieval, stageSkills, getHistoricalUtilityBatch, getLastTurnGrou
 import { isACANActive, scoreWithACAN } from "./acan.js";
 import { swallow } from "./errors.js";
 import { stripStructuralTags } from "./sanitize.js";
+import { isHarnessNotification } from "./harness-prompt.js";
 import { clamp } from "./math.js";
 import { log } from "./log.js";
 // ── Cross-encoder reranker (bge-reranker-v2-m3) ──────────────────────────────
@@ -884,6 +885,10 @@ export function reciprocalRankFusion(rankedLists, k = 60) {
 export function isEchoOfCurrentPrompt(r, queryText, cutoffMs) {
     if (r.table !== "turn")
         return false;
+    // A stored harness notification is never useful past context (0.10.6);
+    // rows written before the ingest-side skip are filtered here.
+    if (isHarnessNotification(r.text))
+        return true;
     const ts = parseDatetimeMs(r.timestamp) ?? 0;
     if (ts <= 0 || ts >= cutoffMs)
         return true;

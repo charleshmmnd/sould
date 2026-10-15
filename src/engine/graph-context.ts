@@ -23,6 +23,7 @@ import { stageRetrieval, stageSkills, getHistoricalUtilityBatch, getLastTurnGrou
 import { isACANActive, scoreWithACAN, type ACANCandidate } from "./acan.js";
 import { swallow } from "./errors.js";
 import { stripStructuralTags } from "./sanitize.js";
+import { isHarnessNotification } from "./harness-prompt.js";
 import { clamp } from "./math.js";
 import { log } from "./log.js";
 import type { LlamaRankingContext, Token } from "node-llama-cpp";
@@ -1018,6 +1019,9 @@ export function isEchoOfCurrentPrompt(
   cutoffMs: number,
 ): boolean {
   if (r.table !== "turn") return false;
+  // A stored harness notification is never useful past context (0.10.6);
+  // rows written before the ingest-side skip are filtered here.
+  if (isHarnessNotification(r.text)) return true;
   const ts = parseDatetimeMs(r.timestamp) ?? 0;
   if (ts <= 0 || ts >= cutoffMs) return true;
   const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();

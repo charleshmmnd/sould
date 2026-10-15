@@ -16,6 +16,7 @@ import { log } from "../engine/log.js";
 import { detectAnomalies, formatAnomalyBlock } from "../engine/observability.js";
 import { countActionablePendingWork } from "../tools/pending-work.js";
 import { enforceInlineCeiling, resolveHookInlineMaxChars } from "../engine/inline-budget.js";
+import { isHarnessNotification } from "../engine/harness-prompt.js";
 /** Wrap raw sould context in a system-reminder block. Claude Code's harness
  * gives system-reminder blocks higher attention weight than plain injected
  * text — empirically the plain-text injection was hitting ~10% retrieval
@@ -110,6 +111,16 @@ export async function handleUserPromptSubmit(state, payload) {
     const userPrompt = payload.prompt ?? payload.user_prompt ?? "";
     if (!userPrompt)
         return {};
+    // 0.10.6: a prompt the harness generated (task notification, subagent
+    // hand-back, system notification, loop sentinel) is not a user turn. It is
+    // neither ingested nor retrieved against: retrieval on it keyed off tool
+    // ids and temp paths and returned noise, and the stored notification then
+    // came back as a "past turn" on real prompts. lastUserText stays on the
+    // user's last real prompt so the Stop hook attributes the reply correctly.
+    if (isHarnessNotification(userPrompt)) {
+        log.debug(`UserPromptSubmit: harness notification for session=${sessionId}, skipping ingest and injection`);
+        return {};
+    }
     session.lastUserText = userPrompt;
     // Prefetch previous-session turns concurrently with pipeline (5s+ query)
     if (state.store.isAvailable() && !session._prevTurnsPrefetch && session._cachedPrevTurns === undefined) {
