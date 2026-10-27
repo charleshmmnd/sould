@@ -2065,10 +2065,14 @@ export class SurrealStore {
             if (sessionRows.length === 0)
                 return [];
             const prevSessionId = String(sessionRows[0].id);
-            const turns = await this.queryFirst(`SELECT role, text, tool_name, timestamp FROM turn
-         WHERE id IN (SELECT VALUE in FROM part_of WHERE out = type::record($sid))
-           AND text != NONE AND text != ""
-           AND pruned_at IS NONE
+            const turns = await this.queryFirst(
+            // Walk part_of from the session side (indexed on out) instead of
+            // "turn WHERE id IN (subquery)", which full-scans every turn: 31s on a
+            // 19k-turn graph, enough to blow the 15s retrieval deadline.
+            `SELECT in.role AS role, in.text AS text, in.tool_name AS tool_name, in.timestamp AS timestamp
+         FROM part_of WHERE out = type::record($sid)
+           AND in.text != NONE AND in.text != ""
+           AND in.pruned_at IS NONE
          ORDER BY timestamp DESC LIMIT $lim`, 
             // type::record($sid): SurrealDB treats string bindings as literal
             // strings, never record references (same trap as the ACAN fetch,

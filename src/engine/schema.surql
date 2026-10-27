@@ -154,6 +154,7 @@ DEFINE FIELD IF NOT EXISTS model ON turn TYPE option<string>;
 DEFINE FIELD IF NOT EXISTS usage ON turn TYPE option<object>;
 DEFINE INDEX IF NOT EXISTS turn_vec_idx ON turn FIELDS embedding HNSW DIMENSION 1024 DIST COSINE TYPE F32 EFC 200 M 16;
 DEFINE INDEX IF NOT EXISTS turn_session_idx ON turn FIELDS session_id;
+DEFINE INDEX IF NOT EXISTS part_of_out_idx ON part_of FIELDS out;
 -- turn.timestamp is filtered by archiveOldTurns at src/engine/surreal.ts:~1774
 -- (`SELECT id FROM turn WHERE timestamp < time::now() - 7d AND id NOT IN ...`).
 -- Without this index the archive scan does a full turn table scan each pass;
