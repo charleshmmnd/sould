@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.8] - 2026-10-31
+
 ### Fixed
 - **Sessions that started while the daemon was down produced orphan knowledge.** The idle reaper exits the daemon 60 s after the last session closes, so the next session's SessionStart hook usually found no daemon, printed the daemon-down notice and failed open. UserPromptSubmit then backfilled the session row only: `session.taskId` and `session.projectId` stayed empty for the whole session, SessionEnd enqueued the extraction item with `task_id` and `project_id` null (224 of the 276 extraction items on the live graph), and the writer fell back to Claude Code's session UUID as the `derived_from` target, which is not a record id (`commit:concept:daemon:<uuid>:derived_from: Invalid record ID format`). Every concept from such a session was written as an island with no `derived_from` and no `relevant_to` edge: 1,570 of 1,959 daemon-extracted concepts on 2026-10-31, 381 of the 445 written in the preceding two weeks. Four changes close this at every layer:
   - `hooks/scripts/hook-proxy.cjs`: SessionStart now spawns the daemon and waits for it (boot to socket-ready is about 3.5 s; the wait is capped at 15 s of the hook's 30 s budget, `SOULD_SESSION_START_WAIT_MS`) and retries an endpoint that refuses while the daemon is still binding. Other events keep failing fast; they fire several times per turn.
