@@ -57,6 +57,18 @@ export declare function runBootstrapMaintenance(state: GlobalPluginState): void;
  *  (after consolidateMemories proves BGE-M3 is live) and a 6h interval keeps
  *  it running thereafter. Exported for tests. */
 export declare function runEmbeddingBackfills(state: GlobalPluginState): Promise<void>;
+/** 0.10.8: link daemon-extracted concepts that were written with no
+ *  provenance edges. Their `source` is `daemon:<kc_session_id>` (or, for older
+ *  rows, `daemon:session:<id>`), which resolves to the session row; relate
+ *  each to that session (derived_from) and to the session's project when the
+ *  row has one (relevant_to). 1,570 such islands on the live graph on
+ *  2026-10-31. Idempotent (relate() treats the UNIQUE collision as done) and
+ *  bounded per run; concepts whose session row no longer exists stay as they
+ *  are and are counted. Returns the number of concepts linked. */
+export declare function healOrphanDaemonConcepts(state: GlobalPluginState, opts?: {
+    store?: GlobalPluginState["store"];
+    maxPerRun?: number;
+}): Promise<number>;
 /** Seed the `skill` table from the repo-committed JSON snapshot at
  *  `.claude-plugin/skills-seed.json`. This is how fresh sould installs
  *  get the curated skills since the SKILL.md files on disk are 5-line

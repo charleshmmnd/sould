@@ -209,6 +209,8 @@ export function runBootstrapMaintenance(state) {
         // number of files deleted so runJob records it as rows_affected.
         await runJob(state, "sweepGcBackups", () => sweepGcBackups(state));
         await runJob(state, "backfillSessionTurnCounts", () => backfillSessionTurnCounts(state));
+        // 0.10.8: re-link daemon concepts written without provenance edges.
+        await runJob(state, "healOrphanDaemonConcepts", () => healOrphanDaemonConcepts(state, { store }));
         await runJob(state, "seedSkillsFromJson", () => seedSkillsFromJson(state));
         await runJob(state, "backfillSkillEmbeddings", () => backfillSkillEmbeddings(state));
     }).catch(e => swallow.warn("bootstrap:maintenance:group2", e));
@@ -236,6 +238,7 @@ export function runBootstrapMaintenance(state) {
             // long-lived daemon keeps the graph clean between restarts. Normally a
             // cheap no-op (see sweepOrphanedEdges' note); self-guarded on store.
             void runJob(state, "sweepOrphanedEdges", () => sweepOrphanedEdges(state));
+            void runJob(state, "healOrphanDaemonConcepts", () => healOrphanDaemonConcepts(state, { store }));
             // H2: re-arm the gc-backups snapshot prune on the same 6h cadence — a
             // daemon up for weeks is exactly where these snapshots would pile up.
             void runJob(state, "sweepGcBackups", () => sweepGcBackups(state));
@@ -387,6 +390,82 @@ async function sweepOrphanedEdges(state) {
     catch (e) {
         swallow.warn("maintenance:sweepOrphanedEdges", e);
     }
+}
+/** 0.10.8: link daemon-extracted concepts that were written with no
+ *  provenance edges. Their `source` is `daemon:<kc_session_id>` (or, for older
+ *  rows, `daemon:session:<id>`), which resolves to the session row; relate
+ *  each to that session (derived_from) and to the session's project when the
+ *  row has one (relevant_to). 1,570 such islands on the live graph on
+ *  2026-10-31. Idempotent (relate() treats the UNIQUE collision as done) and
+ *  bounded per run; concepts whose session row no longer exists stay as they
+ *  are and are counted. Returns the number of concepts linked. */
+export async function healOrphanDaemonConcepts(state, opts = {}) {
+    const store = opts.store ?? state.store;
+    if (!store.isAvailable())
+        return 0;
+    const maxPerRun = opts.maxPerRun ?? 2_000;
+    const rows = await store.queryFirst(`SELECT id, source FROM concept
+       WHERE source != NONE AND string::starts_with(source, 'daemon:')
+         AND count(->derived_from) = 0
+       LIMIT ${maxPerRun} TIMEOUT 30s`);
+    if (rows.length === 0)
+        return 0;
+    const sessions = new Map();
+    const resolveSession = async (tail) => {
+        const cached = sessions.get(tail);
+        if (cached !== undefined)
+            return cached;
+        let found = null;
+        try {
+            const hit = /^session:[A-Za-z0-9_]+$/.test(tail)
+                ? await store.queryFirst(`SELECT id, project_id FROM ${tail}`)
+                : /^[0-9a-f-]{36}$/i.test(tail)
+                    ? await store.queryFirst(`SELECT id, project_id FROM session WHERE kc_session_id = $kc LIMIT 1`, { kc: tail })
+                    : [];
+            if (hit[0]?.id) {
+                const pid = hit[0].project_id;
+                found = {
+                    id: String(hit[0].id),
+                    projectId: pid != null && String(pid).startsWith("project:") ? String(pid) : undefined,
+                };
+            }
+        }
+        catch (e) {
+            swallow("maintenance:healOrphanDaemonConcepts:session", e);
+        }
+        sessions.set(tail, found);
+        return found;
+    };
+    let linked = 0;
+    let withProject = 0;
+    let unresolved = 0;
+    for (const row of rows) {
+        const conceptId = String(row.id);
+        if (!RECORD_ID_RE.test(conceptId) || typeof row.source !== "string") {
+            unresolved++;
+            continue;
+        }
+        const session = await resolveSession(row.source.slice("daemon:".length));
+        if (!session) {
+            unresolved++;
+            continue;
+        }
+        try {
+            await store.relate(conceptId, "derived_from", session.id);
+            linked++;
+            if (session.projectId) {
+                if (await store.relate(conceptId, "relevant_to", session.projectId))
+                    withProject++;
+            }
+        }
+        catch (e) {
+            swallow("maintenance:healOrphanDaemonConcepts:relate", e);
+        }
+    }
+    log.warn(`[maintenance] healOrphanDaemonConcepts: linked ${linked} concept(s) to their session` +
+        ` (${withProject} also to a project); ${unresolved} left (session row not found)` +
+        (rows.length >= maxPerRun ? `; more remain for the next run` : ""));
+    return linked;
 }
 /** 0.7.118: live `turn` rows were the one embedded table with NO backfill —
  *  turns written while the embedder was down stayed unembedded forever

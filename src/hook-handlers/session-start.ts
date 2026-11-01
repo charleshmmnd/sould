@@ -23,6 +23,7 @@ import { checkStageTransition } from "../engine/soul.js";
 import { countActionablePendingWork } from "../tools/pending-work.js";
 import { findDueRoutines, formatRoutineContext } from "../engine/skills.js";
 import { enforceInlineCeiling, resolveHookInlineMaxChars } from "../engine/inline-budget.js";
+import { ensureSessionPillars } from "../engine/session-pillars.js";
 
 export async function handleSessionStart(
   state: GlobalPluginState,
@@ -40,39 +41,17 @@ export async function handleSessionStart(
   // Bootstrap 5-pillar nodes
   if (store.isAvailable()) {
     try {
-      session.agentId = await store.ensureAgent("sould", "claude");
-
       const cwd = (payload.cwd as string) ?? state.workspaceDir ?? process.cwd();
-      const projectName = cwd.split("/").pop() ?? "unknown";
-      session.projectId = await store.ensureProject(projectName);
-
-      // T5: pillar wiring failures were silent for their entire life (the
-      // linkToProject no-op shipped invisibly for months) — warn from now on.
-      await store.linkAgentToProject(session.agentId, session.projectId)
-        .catch(e => swallow.warn("sessionStart:linkAgentToProject", e));
-
-      session.taskId = await store.createTask(`Session in ${projectName}`, session.projectId);
-      await store.linkAgentToTask(session.agentId, session.taskId)
-        .catch(e => swallow.warn("sessionStart:linkAgentToTask", e));
-      await store.linkTaskToProject(session.taskId, session.projectId)
-        .catch(e => swallow.warn("sessionStart:linkTaskToProject", e));
-
-      session.surrealSessionId = await store.createSession(session.agentId, session.sessionId, session.projectId);
-      // Loud-fail if createSession resolved to an empty string. SurrealDB
-      // returning NONE that gets coerced silently leaves this field empty
-      // and downstream commits (commit:subagent:*:derived_from_session_fallback)
-      // then reject with "Invalid record ID format" far away from the actual
-      // origin. We log.error here so the failure surfaces at the point of
-      // origin; we do NOT throw — the session proceeds in degraded mode
-      // rather than killing all hooks for the session. The error is the
-      // diagnostic signal.
+      // 0.10.8: the pillar bootstrap (agent, project, task, session row and
+      // their edges) lives in ensureSessionPillars so UserPromptSubmit runs
+      // the same code when this hook never reached the daemon (idle-reaped
+      // between sessions; the proxy fails open). Before, a missed SessionStart
+      // left taskId/projectId empty for the whole session and every concept
+      // extracted from it was written without provenance edges.
+      await ensureSessionPillars(store, session, cwd, { logTag: "sessionStart" });
       if (!session.surrealSessionId) {
-        log.error(`[session-start] store.createSession returned empty surrealSessionId for session=${sessionId}; downstream commits will fail`);
+        log.error(`[session-start] ensureSessionPillars left surrealSessionId empty for session=${sessionId}; downstream commits will fail`);
       }
-      await store.markSessionActive(session.surrealSessionId)
-        .catch(e => swallow.warn("sessionStart:markActive", e));
-      await store.linkSessionToTask(session.surrealSessionId, session.taskId)
-        .catch(e => swallow.warn("sessionStart:linkSessionToTask", e));
 
       // Seed identity and cognitive bootstrap (idempotent). T5: failed
       // seeding was the 0/15 fresh-install bug class — warn, never silent.

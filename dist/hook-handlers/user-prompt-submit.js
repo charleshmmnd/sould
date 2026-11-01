@@ -17,6 +17,7 @@ import { detectAnomalies, formatAnomalyBlock } from "../engine/observability.js"
 import { countActionablePendingWork } from "../tools/pending-work.js";
 import { enforceInlineCeiling, resolveHookInlineMaxChars } from "../engine/inline-budget.js";
 import { isHarnessNotification } from "../engine/harness-prompt.js";
+import { ensureSessionPillars } from "../engine/session-pillars.js";
 /** Wrap raw sould context in a system-reminder block. Claude Code's harness
  * gives system-reminder blocks higher attention weight than plain injected
  * text — empirically the plain-text injection was hitting ~10% retrieval
@@ -79,18 +80,24 @@ export async function handleUserPromptSubmit(state, payload) {
     // X-close orphan pattern persists). ensureSessionRow is idempotent so
     // SessionStart can still own first-fire and this just no-ops on warm
     // sessions.
-    if (state.store.isAvailable() && !session.surrealSessionId) {
+    //
+    // 0.10.8: the same gap opens when SessionStart never reached the daemon
+    // (idle-reaped between sessions, proxy failed open). The old backfill made
+    // the session row only, so taskId/projectId stayed "" and SessionEnd
+    // enqueued the extraction with no task or project: every concept from the
+    // session was then an orphan. Run the full idempotent pillar bootstrap.
+    if (state.store.isAvailable() && (!session.surrealSessionId || !session.taskId || !session.projectId)) {
         try {
-            if (!session.agentId) {
-                session.agentId = await state.store.ensureAgent("sould", "claude");
+            const cwd = payload.cwd ?? state.workspaceDir ?? process.cwd();
+            const { filled } = await ensureSessionPillars(state.store, session, cwd, { logTag: "userPromptSubmit" });
+            if (filled.length > 0) {
+                log.info(`[user-prompt-submit] backfilled ${filled.join(", ")} for ${sessionId} (SessionStart missed or session resumed) -> ${session.surrealSessionId}`);
             }
-            session.surrealSessionId = await state.store.ensureSessionRow(session.sessionId, session.agentId, session.projectId || undefined);
-            log.info(`[user-prompt-submit] backfilled session row for ${sessionId} → ${session.surrealSessionId}`);
         }
         catch (e) {
             // T5: a failed session row orphans every turn written under this
-            // session (the W2 dead-feature class) — warn, never silent.
-            swallow.warn("userPromptSubmit:ensureSessionRow", e);
+            // session (the W2 dead-feature class): warn, never silent.
+            swallow.warn("userPromptSubmit:ensureSessionPillars", e);
         }
     }
     // Increment session turn_count at turn START (0.7.12+). Previously this

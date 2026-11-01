@@ -52,6 +52,12 @@ const APPROVED_RELATE_CALLERS = new Set<string>([
   // bug. One-off migration path, not a normal write path.
   "src/engine/recovery.ts",
 
+  // 0.10.8 orphan-recovery: healOrphanDaemonConcepts relinks EXISTING concept
+  // rows (written while their session had no task/project pillars) to their
+  // session row and project. Recovery path over existing nodes, same class as
+  // recovery.ts; a new concept still goes through commitKnowledge.
+  "src/engine/maintenance.ts",
+
   // Turn ingestion: part_of (turn→session), responds_to (turn→turn). These
   // fire during the user-prompt-submit / pre-tool-use hooks as the
   // conversation is captured; commitKnowledge doesn't model turn writes.

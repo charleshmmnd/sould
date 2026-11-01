@@ -11,12 +11,27 @@
 import type { TurnData, PriorExtractions } from "./daemon-types.js";
 import type { SurrealStore } from "./surreal.js";
 import type { EmbeddingService } from "./embeddings.js";
-import { swallow } from "./errors.js";
+import { swallow, RECORD_ID_RE } from "./errors.js";
 import { assertRecordId } from "./surreal.js";
 import { linkConceptHierarchy, linkToRelevantConcepts } from "./concept-links.js";
 import { commitKnowledge } from "./commit.js";
 import { stripStructuralTags } from "./sanitize.js";
 import { clamp01 } from "./math.js";
+
+/** The derived_from target for an extracted concept: the task row, else the
+ *  session row. Only record ids qualify; a bare Claude Code session UUID (what
+ *  callers pass as `sessionId`) is never returned. `sessionId` is accepted as a
+ *  last resort for legacy callers that passed the session RECORD id there. */
+export function provenanceTarget(
+  taskId?: string | null,
+  surrealSessionId?: string | null,
+  sessionId?: string | null,
+): string | undefined {
+  for (const cand of [taskId, surrealSessionId, sessionId]) {
+    if (typeof cand === "string" && cand.length > 0 && RECORD_ID_RE.test(cand)) return cand;
+  }
+  return undefined;
+}
 
 /** Local-narrow record-id regex: only accept ids in the `memory:` table. */
 const memoryIdRe = /^memory:[a-zA-Z0-9_]+$/;
@@ -178,6 +193,9 @@ export async function writeExtractionResults(
   taskId?: string,
   projectId?: string,
   turns?: TurnData[],
+  /** The session ROW id (`session:...`). `sessionId` above is Claude Code's
+   *  session UUID, which keys `source` and memory rows but is not a record. */
+  surrealSessionId?: string,
 ): Promise<ExtractionCounts> {
   sanitizeExtraction(result);
 
@@ -217,11 +235,16 @@ export async function writeExtractionResults(
         // backup). projectId auto-seals relevant_to via linkToProject.
         // commitConcept also runs linkConceptHierarchy + linkToRelevantConcepts
         // internally so we no longer call those here.
-        const targetForProvenance = taskId || sessionId || undefined;
+        // 0.10.8: the fallback used to be `sessionId`, Claude Code's session
+        // UUID, so every extraction whose work item had no task_id (the
+        // session's SessionStart never reached the daemon) threw "Invalid
+        // record ID format: <uuid>" and left the concept an orphan. The record
+        // fallback is the session row, passed separately.
+        const targetForProvenance = provenanceTarget(taskId, surrealSessionId, sessionId);
         if (!targetForProvenance) {
           swallow.warn(
             "daemon:concept:derived_from_skipped",
-            new Error(`taskId and sessionId both empty when extracting concept "${c.name}" — concept will lack derived_from edge`),
+            new Error(`no task or session record id when extracting concept "${c.name}": concept will lack derived_from edge`),
           );
         }
         const { id: conceptId } = await commitKnowledge({ store, embeddings }, {

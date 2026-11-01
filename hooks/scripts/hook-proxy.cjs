@@ -30,8 +30,11 @@ const http = require("node:http");
 const path = require("node:path");
 const os = require("node:os");
 
+// 0.10.8: the file is also require()d by the test suite, which drives run()
+// directly; only the CLI entry needs an event name on argv.
+const IS_MAIN = require.main === module;
 const HOOK_EVENT = process.argv[2];
-if (!HOOK_EVENT) {
+if (IS_MAIN && !HOOK_EVENT) {
   process.stderr.write("hook-proxy: missing event name\n");
   process.exit(1);
 }
@@ -55,7 +58,21 @@ const EVENT_TIMEOUTS_MS = {
   // identical work at the next session-start.
   "session-end": 3_000,
 };
-const TIMEOUT_MS = EVENT_TIMEOUTS_MS[HOOK_EVENT] ?? 8_000;
+function budgetFor(eventName) {
+  return EVENT_TIMEOUTS_MS[eventName] ?? 8_000;
+}
+// 0.10.8: how long SessionStart waits for a daemon it (or the MCP client)
+// just spawned before failing open. The idle reaper exits the daemon 60 s
+// after the last session closes, so the next session's SessionStart almost
+// always found no daemon, failed open, and the session ran with no wakeup,
+// no routines, and (worse) no task/project pillars until UserPromptSubmit;
+// the extraction then wrote orphan concepts. Boot to socket-ready measures
+// about 3.5 s on the reference machine, so 15 s leaves the post itself the
+// rest of the 25 s budget (hooks.json allows 30 s). Other events keep the
+// fail-fast behaviour: they fire several times per turn and a wait there
+// would stall the turn.
+const SESSION_START_WAIT_MS = Number(process.env.SOULD_SESSION_START_WAIT_MS) || 15_000;
+const WAIT_POLL_MS = 250;
 const CACHE_DIR = path.join(HOME, ".sould", "cache");
 const AUTH_TOKEN_PATH = path.join(CACHE_DIR, "auth-token");
 
@@ -132,7 +149,7 @@ function readPort() {
   }
 }
 
-function postJson({ socketPath, port, eventName, body }) {
+function postJson({ socketPath, port, eventName, body, timeoutMs = budgetFor(eventName) }) {
   // Resolves { out, fail } where fail distinguishes the failure class:
   //   "connect" → socket refused/missing → the daemon is genuinely down
   //   "timeout" → the daemon accepted but is SLOW (e.g. a CPU-mode transform)
@@ -154,7 +171,7 @@ function postJson({ socketPath, port, eventName, body }) {
       res.on("error", () => resolve({ out: "", fail: "connect" }));
     });
     req.on("error", () => resolve({ out: "", fail: "connect" })); // refused/missing socket
-    req.setTimeout(TIMEOUT_MS, () => { req.destroy(); resolve({ out: "", fail: "timeout" }); });
+    req.setTimeout(timeoutMs, () => { req.destroy(); resolve({ out: "", fail: "timeout" }); });
     req.write(body);
     req.end();
   });
@@ -269,13 +286,83 @@ function daemonDownResponse(eventName) {
   });
 }
 
-(async () => {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Where the daemon listens right now, or null. */
+function locateDaemon() {
+  const sock = findUnixSocket();
+  const port = sock ? null : readPort();
+  return (sock || port) ? { sock, port } : null;
+}
+
+/** Poll for a daemon endpoint until `deadlineAt` (epoch ms). Returns the
+ *  endpoint or null. Exported for tests. */
+async function waitForDaemon(deadlineAt, pollMs = WAIT_POLL_MS) {
+  for (;;) {
+    const ep = locateDaemon();
+    if (ep) return ep;
+    if (Date.now() >= deadlineAt) return null;
+    await sleep(Math.min(pollMs, Math.max(1, deadlineAt - Date.now())));
+  }
+}
+
+/** Handle one hook event: returns the JSON string to print on stdout.
+ *  `spawnDaemon` and `waitMs` are injectable for tests. */
+async function run({ event, body, spawnDaemon = trySpawnDaemon, waitMs = SESSION_START_WAIT_MS }) {
+  const startedAt = Date.now();
+  const budget = budgetFor(event);
+  const waits = event === "session-start" && waitMs > 0;
+  const waitDeadline = startedAt + waitMs;
+  // Remaining budget for the post itself after any wait, never under 3 s.
+  const postTimeout = () => Math.max(3_000, startedAt + budget - Date.now());
+
+  let ep = locateDaemon();
+  if (!ep) {
+    spawnDaemon();
+    if (!waits) return daemonDownResponse(event);
+    ep = await waitForDaemon(waitDeadline);
+    if (!ep) return daemonDownResponse(event);
+  }
+  let { out, fail } = await postJson({
+    socketPath: ep.sock, port: ep.port, eventName: event, body, timeoutMs: postTimeout(),
+  });
+  if (!out && fail === "connect" && waits) {
+    // The endpoint exists but refused: a daemon still booting (socket file
+    // created before listen), or one that died between the lookup and the
+    // post. Respawn if needed and keep retrying until the wait budget is spent.
+    spawnDaemon();
+    while (!out && fail === "connect" && Date.now() < waitDeadline) {
+      await sleep(WAIT_POLL_MS);
+      const next = locateDaemon();
+      if (!next) continue;
+      ({ out, fail } = await postJson({
+        socketPath: next.sock, port: next.port, eventName: event, body, timeoutMs: postTimeout(),
+      }));
+    }
+  }
+  if (!out) {
+    if (fail === "timeout") {
+      // Slow is not down (W2-01): the daemon is alive but exceeded this event's
+      // budget. Fail open WITHOUT respawning and WITHOUT the daemon-down
+      // warning; both were false alarms that compounded the slowness.
+      return "{}";
+    }
+    // Connect-class failure: the daemon is genuinely unreachable.
+    spawnDaemon();
+    return daemonDownResponse(event);
+  }
+  return out;
+}
+
+async function main() {
   const payload = await readStdin();
   let body = payload || "{}";
   // Drain-session tag (2026-06-09 spawn-storm fix): auto-drain subprocesses are
   // spawned with SOULD_DRAIN_SESSION=1 (buildDrainEnv). The hook payload's
   // session_id is Claude Code's own transcript id, which the daemon cannot
-  // correlate with the spawn — so stamp the flag into the payload here, where
+  // correlate with the spawn, so stamp the flag into the payload here, where
   // the child's env is visible. handleSessionEnd uses it to skip the drain
   // re-trigger (pre-fix, each failed drain's own SessionEnd respawned the next
   // one every ~25s, burning the full daily budget). Fail-open on parse errors.
@@ -284,33 +371,27 @@ function daemonDownResponse(eventName) {
       const obj = JSON.parse(body);
       obj.sould_drain_session = true;
       body = JSON.stringify(obj);
-    } catch { /* malformed stdin — pass through unchanged */ }
+    } catch { /* malformed stdin: pass through unchanged */ }
   }
-  const sock = findUnixSocket();
-  const port = sock ? null : readPort();
-  if (!sock && !port) {
-    trySpawnDaemon();
-    process.stdout.write(daemonDownResponse(HOOK_EVENT));
-    return;
-  }
-  const { out, fail } = await postJson({
-    socketPath: sock,
-    port,
-    eventName: HOOK_EVENT,
-    body,
+  process.stdout.write(await run({ event: HOOK_EVENT, body }));
+}
+
+if (IS_MAIN) {
+  main().catch((e) => {
+    process.stderr.write(`hook-proxy: ${e && e.message ? e.message : e}\n`);
+    process.stdout.write("{}");
   });
-  if (!out) {
-    if (fail === "timeout") {
-      // Slow ≠ down (W2-01): the daemon is alive but exceeded this event's
-      // budget. Fail open WITHOUT respawning and WITHOUT the daemon-down
-      // warning — both were false alarms that compounded the slowness.
-      process.stdout.write("{}");
-      return;
-    }
-    // Connect-class failure — the daemon is genuinely unreachable.
-    trySpawnDaemon();
-    process.stdout.write(daemonDownResponse(HOOK_EVENT));
-    return;
-  }
-  process.stdout.write(out);
-})();
+}
+
+module.exports = {
+  run,
+  waitForDaemon,
+  locateDaemon,
+  findUnixSocket,
+  readPort,
+  postJson,
+  daemonDownResponse,
+  budgetFor,
+  EVENT_TIMEOUTS_MS,
+  SESSION_START_WAIT_MS,
+};

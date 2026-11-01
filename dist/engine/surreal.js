@@ -1285,22 +1285,30 @@ export class SurrealStore {
     async linkSessionToTask(sessionId, taskId) {
         assertRecordId(sessionId);
         assertRecordId(taskId);
-        await this.queryExec(`RELATE ${sessionId}->session_task->${taskId}`);
+        // 0.10.8: through relate(), so the UNIQUE (in,out) collision on a repeat
+        // link reads as "already linked" instead of a warn on every session start.
+        await this.relate(sessionId, "session_task", taskId);
     }
     async linkTaskToProject(taskId, projectId) {
         assertRecordId(taskId);
         assertRecordId(projectId);
-        await this.queryExec(`RELATE ${taskId}->task_part_of->${projectId}`);
+        // 0.10.8: through relate(), so the UNIQUE (in,out) collision on a repeat
+        // link reads as "already linked" instead of a warn on every session start.
+        await this.relate(taskId, "task_part_of", projectId);
     }
     async linkAgentToTask(agentId, taskId) {
         assertRecordId(agentId);
         assertRecordId(taskId);
-        await this.queryExec(`RELATE ${agentId}->performed->${taskId}`);
+        // 0.10.8: through relate(), so the UNIQUE (in,out) collision on a repeat
+        // link reads as "already linked" instead of a warn on every session start.
+        await this.relate(agentId, "performed", taskId);
     }
     async linkAgentToProject(agentId, projectId) {
         assertRecordId(agentId);
         assertRecordId(projectId);
-        await this.queryExec(`RELATE ${agentId}->owns->${projectId}`);
+        // 0.10.8: through relate(), so the UNIQUE (in,out) collision on a repeat
+        // link reads as "already linked" instead of a warn on every session start.
+        await this.relate(agentId, "owns", projectId);
     }
     // ── Graph traversal ────────────────────────────────────────────────────
     /**

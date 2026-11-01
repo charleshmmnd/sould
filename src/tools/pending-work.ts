@@ -79,6 +79,35 @@ interface PendingWorkItem {
   won_chain_ids?: string[];
 }
 
+/** Provenance for a work item's writes (0.10.8). `task_id`/`project_id` are
+ *  empty on items enqueued for sessions whose SessionStart never reached the
+ *  daemon; the session row (always present as `surreal_session_id`) carries
+ *  the project, so fill `item.project_id` from it. Mutates the item so every
+ *  downstream writer (handoff note, reflection, skills) sees the same ids. */
+export async function resolveItemProvenance(
+  store: Pick<SurrealStore, "queryFirst">,
+  item: PendingWorkItem,
+): Promise<{ taskId?: string; projectId?: string; surrealSessionId?: string }> {
+  const sid = typeof item.surreal_session_id === "string" && /^session:[A-Za-z0-9_]+$/.test(item.surreal_session_id)
+    ? item.surreal_session_id
+    : undefined;
+  if (!item.project_id && sid) {
+    try {
+      assertRecordId(sid);
+      const rows = await store.queryFirst<{ project_id?: unknown }>(`SELECT project_id FROM ${sid}`);
+      const pid = rows[0]?.project_id;
+      if (pid != null && String(pid).startsWith("project:")) item.project_id = String(pid);
+    } catch (e) {
+      swallow("pending-work:resolveItemProvenance", e);
+    }
+  }
+  return {
+    taskId: item.task_id || undefined,
+    projectId: item.project_id || undefined,
+    surrealSessionId: sid,
+  };
+}
+
 // Skill extraction JSON schema (matches skills.ts)
 const skillSchema = {
   type: "object",
@@ -1394,14 +1423,21 @@ async function commitResults(
         }
       }
       const prior: PriorExtractions = { conceptNames: [], artifactPaths: [], skillNames: [] };
+      // 0.10.8: items enqueued for a session whose SessionStart never reached
+      // the daemon carry no task_id/project_id (224 of 276 on the live graph).
+      // Fill the project from the session row and hand the writer the session
+      // ROW id as the derived_from fallback, never the bare session UUID.
+      const prov = await resolveItemProvenance(store, item);
       const counts = await writeExtractionResults(
         extractionData as Record<string, any>,
         item.session_id,
         store,
         embeddings,
         prior,
-        item.task_id,
-        item.project_id,
+        prov.taskId,
+        prov.projectId,
+        undefined,
+        prov.surrealSessionId,
       );
       if (item.work_type === "coalesced_extraction") {
         const parsed = extractionData as Record<string, any>;

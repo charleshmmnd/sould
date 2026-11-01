@@ -222,6 +222,15 @@ export declare function seedSoulAsCoreMemory(soul: SoulDocument, store: SurrealS
  * Check and record stage transitions. Returns the new stage if a transition
  * occurred, null otherwise. Persists last-known stage in DB.
  */
+export interface MaturityStageRow {
+    stage: string;
+    created_at?: unknown;
+    last_entered_at?: unknown;
+}
+/** The stage whose row was entered most recently: `last_entered_at` when the
+ *  stage was re-entered, else `created_at`. Unparsable or missing dates sort
+ *  first. Exported for tests. */
+export declare function latestEnteredStage(rows: MaturityStageRow[]): MaturityStage | null;
 export declare function checkStageTransition(store: SurrealStore): Promise<{
     transitioned: boolean;
     previousStage: MaturityStage | null;

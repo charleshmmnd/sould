@@ -409,8 +409,13 @@ export async function rerankResults(deduped, queryText) {
         // ship; they keep their bands so the formatter renders salience honestly.
         if (survivors.length === 0 && scored.length > 0) {
             const floored = [...scored].sort((a, b) => b.finalScore - a.finalScore);
+            // 0.10.8: the line fires on most prompts of a mature graph; carry the
+            // score shape so the log can tell "everything is faintly related"
+            // (max near the floor) from a miscalibrated model (max near 0).
+            const cs = scored.map((c) => c.crossScore ?? 0).sort((a, b) => b - a);
             log.warn(`[rerank] cross-encoder dropped all ${scored.length} candidates below ` +
-                `${BAND_DROP_BELOW}; keeping top ${Math.min(RERANK_ALL_DROPPED_KEEP, floored.length)} by blended score`);
+                `${BAND_DROP_BELOW} (max ${cs[0].toFixed(3)}, median ${cs[Math.floor(cs.length / 2)].toFixed(3)}, ` +
+                `query ${queryText.length} chars); keeping top ${Math.min(RERANK_ALL_DROPPED_KEEP, floored.length)} by blended score`);
             return floored.slice(0, RERANK_ALL_DROPPED_KEEP);
         }
         // Items not cross-scored (tail past top-N, or past the token budget) are

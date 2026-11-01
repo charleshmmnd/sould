@@ -892,6 +892,28 @@ export async function seedSoulAsCoreMemory(
  * Check and record stage transitions. Returns the new stage if a transition
  * occurred, null otherwise. Persists last-known stage in DB.
  */
+export interface MaturityStageRow {
+  stage: string;
+  created_at?: unknown;
+  last_entered_at?: unknown;
+}
+
+/** The stage whose row was entered most recently: `last_entered_at` when the
+ *  stage was re-entered, else `created_at`. Unparsable or missing dates sort
+ *  first. Exported for tests. */
+export function latestEnteredStage(rows: MaturityStageRow[]): MaturityStage | null {
+  let best: MaturityStageRow | null = null;
+  let bestAt = -Infinity;
+  for (const r of rows) {
+    if (!r || typeof r.stage !== "string") continue;
+    const raw = r.last_entered_at ?? r.created_at;
+    const at = raw instanceof Date ? raw.getTime() : (typeof raw === "string" ? new Date(raw).getTime() : NaN);
+    const t = Number.isFinite(at) ? at : 0;
+    if (best === null || t > bestAt) { best = r; bestAt = t; }
+  }
+  return best ? (best.stage as MaturityStage) : null;
+}
+
 export async function checkStageTransition(store: SurrealStore): Promise<{
   transitioned: boolean;
   previousStage: MaturityStage | null;
@@ -900,38 +922,53 @@ export async function checkStageTransition(store: SurrealStore): Promise<{
 }> {
   const report = await checkGraduation(store);
 
-  // Get last recorded stage
+  // Get last recorded stage. One row per stage name (maturity_stage_unique),
+  // and a stage can be re-entered: the live soul reached `ready` on
+  // 2026-06-20 and fell back to `maturing` when quality dipped to 0.84. So
+  // "last recorded" is the row most recently ENTERED, not most recently
+  // created (the table holds at most one row per stage; read them all).
   let previousStage: MaturityStage | null = null;
   try {
-    const rows = await store.queryFirst<{ stage: string }>(
-      `SELECT stage FROM maturity_stage ORDER BY created_at DESC LIMIT 1`,
+    const rows = await store.queryFirst<MaturityStageRow>(
+      `SELECT stage, created_at, last_entered_at FROM maturity_stage`,
     );
-    previousStage = (rows[0]?.stage as MaturityStage) ?? null;
-  } catch { /* table may not exist yet — first run */ }
+    previousStage = latestEnteredStage(rows);
+  } catch { /* table may not exist yet (first run) */ }
 
   const transitioned = previousStage !== null && previousStage !== report.stage;
 
-  // Always record current stage (upsert pattern)
   try {
     if (previousStage === null || transitioned) {
-      // Do NOT pass created_at as an ISO string — SurrealDB's `datetime`
-      // type rejects string bindings with "Couldn't coerce value for field
-      // `created_at` ... Expected `datetime` but found '...'" (swallowed
-      // pre-fix). The schema has DEFAULT time::now() so letting the DB
-      // fill this works correctly. This was the root cause of
-      // maturity_stage having 0 rows despite the writer being wired —
-      // every CREATE silently failed on the ISO-string coercion.
-      await store.queryExec(
-        `CREATE maturity_stage CONTENT $data`,
-        {
-          data: {
-            stage: report.stage,
-            volume_score: report.volumeScore,
-            quality_score: report.qualityScore,
-            met_count: report.met.length,
-          },
-        },
+      const scores = {
+        volume_score: report.volumeScore,
+        quality_score: report.qualityScore,
+        met_count: report.met.length,
+      };
+      // 0.10.8: re-entering a stage UPDATEs its existing row. The former
+      // unconditional CREATE collided with the unique index on every session
+      // start after the regression ("Database index maturity_stage_unique
+      // already contains 'maturing'"), so the regression was never recorded.
+      const updated = await store.queryFirst<{ id: unknown }>(
+        `UPDATE maturity_stage SET
+           last_entered_at = time::now(),
+           volume_score = $volume_score,
+           quality_score = $quality_score,
+           met_count = $met_count,
+           reentries = IF reentries IS NONE THEN 1 ELSE reentries + 1 END
+         WHERE stage = $stage RETURN id`,
+        { ...scores, stage: report.stage },
       );
+      if (updated.length === 0) {
+        // Do NOT pass created_at as an ISO string: SurrealDB's `datetime`
+        // type rejects string bindings ("Couldn't coerce value for field
+        // `created_at` ... Expected `datetime`"), which was swallowed and
+        // left maturity_stage empty for months. The schema has DEFAULT
+        // time::now(), so let the DB fill it.
+        await store.queryExec(
+          `CREATE maturity_stage CONTENT $data`,
+          { data: { stage: report.stage, ...scores } },
+        );
+      }
     }
   } catch (e) {
     swallow.warn("soul:recordStage", e);

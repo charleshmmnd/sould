@@ -13,6 +13,27 @@
 import type { GlobalPluginState, SessionState } from "../engine/state.js";
 import { type SoulSectionName } from "../engine/soul.js";
 import { type SurrealStore } from "../engine/surreal.js";
+interface PendingWorkItem {
+    id: string;
+    work_type: string;
+    session_id: string;
+    surreal_session_id?: string;
+    task_id?: string;
+    project_id?: string;
+    payload?: Record<string, unknown>;
+    priority: number;
+    won_chain_ids?: string[];
+}
+/** Provenance for a work item's writes (0.10.8). `task_id`/`project_id` are
+ *  empty on items enqueued for sessions whose SessionStart never reached the
+ *  daemon; the session row (always present as `surreal_session_id`) carries
+ *  the project, so fill `item.project_id` from it. Mutates the item so every
+ *  downstream writer (handoff note, reflection, skills) sees the same ids. */
+export declare function resolveItemProvenance(store: Pick<SurrealStore, "queryFirst">, item: PendingWorkItem): Promise<{
+    taskId?: string;
+    projectId?: string;
+    surrealSessionId?: string;
+}>;
 /**
  * Count pending_work rows that would ACTUALLY yield work if drained — the
  * "actionable" count behind the SessionStart / UserPromptSubmit "DRAIN NOW"
