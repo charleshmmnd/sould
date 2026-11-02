@@ -5,6 +5,7 @@ import { log } from "./log.js";
 import { loadSchema } from "./schema-loader.js";
 import { parseDatetimeMs } from "./observability.js";
 import { registerSurrealSupervisorStore } from "./bootstrap.js";
+import { FTS_STOPWORDS, RATIONALE_STOPWORDS, isNoiseWord } from "./stopwords.js";
 /** SurrealDB transaction-conflict detector. Used to differentiate expected
  *  contention (silent retry/swallow) from real errors that should surface
  *  via swallow.warn. Structured-field check first (err.kind/err.name) before
@@ -25,22 +26,18 @@ function isTransactionConflict(e) {
     return /tx|transaction|conflict|lock|versionstamp|rpcerror|busy|retryable/i.test(o.message);
 }
 /** Record with a vector similarity score from SurrealDB search */
-// ── Lexical (BM25) query-keyword extraction ───────────────────────────────────
-// Basic English stopword removal so the per-term OR full-text query isn't built
-// from function words. BM25's IDF already down-weights common terms, so this is a
-// lighter list than the tag arm's aggressive noise filter (tagBoostedConcepts).
-const FTS_STOPWORDS = new Set([
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does", "did",
-    "will", "would", "could", "should", "can", "may", "might", "to", "of", "in", "for", "on", "with", "at", "by",
-    "from", "as", "into", "about", "and", "or", "but", "if", "so", "not", "no", "this", "that", "these", "those",
-    "it", "its", "you", "we", "they", "my", "your", "our", "their", "what", "which", "who", "how", "when", "where",
-    "why", "all", "any", "some", "more", "just", "than", "then", "over", "under", "such", "also", "there", "here",
-]);
+// Lexical (BM25) query-keyword extraction. Function words plus the
+// conversational tier (contractions without the apostrophe, interjections,
+// profanity, laughs) come out before the per-term OR full-text query is built.
+// BM25's IDF down-weights common words on its own, but a contraction or a
+// swear is rare in the corpus outside the user's own venting turns, so without
+// this tier the lexical arm matched exactly those (0.10.9). Filler topic words
+// stay in: IDF handles them.
 const FTS_MAX_TERMS = 6;
 /** Distinctive query keywords for the lexical (BM25) arm — lowercase, depunct, destopword, capped. */
 export function extractFtsTerms(queryText) {
     return queryText.toLowerCase().replace(/[^a-z0-9\s-]/g, "").split(/\s+/)
-        .filter((w) => w.length > 2 && !FTS_STOPWORDS.has(w))
+        .filter((w) => w.length > 2 && !isNoiseWord(w, FTS_STOPWORDS))
         .slice(0, FTS_MAX_TERMS);
 }
 /** Summed term-frequency of `terms` in `text` — BM25 fallback for the SurrealDB
@@ -1321,39 +1318,12 @@ export class SurrealStore {
      * Returns concepts that pure vector search might miss due to embedding mismatch.
      */
     async tagBoostedConcepts(queryText, queryVec, limit = 10) {
-        // Extract candidate tags from query — lowercase, deduplicate. Same
-        // expanded stopword set as the rationale-display path in context-assembler.ts
-        // (kept in sync to prevent the tag-boost from triggering on conversational
-        // noise like "completely", "incorrect", "search", "context" — words that
-        // would otherwise pull unrelated concepts via tag match).
-        const stopwords = new Set([
-            "the", "a", "an", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-            "do", "does", "did", "will", "would", "could", "should", "may", "might", "can", "shall",
-            "to", "of", "in", "for", "on", "with", "at", "by", "from", "as", "into", "about", "between",
-            "through", "during", "it", "its", "this", "that", "these", "those", "i", "you", "we", "they",
-            "my", "your", "our", "their", "what", "which", "who", "how", "when", "where", "why", "not",
-            "no", "and", "or", "but", "if", "so", "any", "all", "some", "more", "just", "also", "than",
-            "very", "too", "much", "many",
-            "completely", "incorrect", "correct", "wrong", "right", "broken", "working", "missing",
-            "really", "actually", "probably", "maybe", "perhaps", "clearly", "obviously", "exactly",
-            "again", "still", "even", "well", "good", "bad", "great", "fine", "okay", "yeah", "yes",
-            "basically", "mostly", "kind", "sort", "like", "want", "need", "make", "made",
-            "take", "took", "give", "gave", "tell", "told", "show", "shown", "said", "says", "know",
-            "knew", "think", "thought", "going", "doing", "done", "got", "get", "getting", "find",
-            "found", "look", "looks", "looking", "seem", "seems", "mean", "means", "meant",
-            "thing", "things", "stuff", "way", "ways", "time", "times", "place", "places", "part",
-            "parts", "point", "points", "case", "issue", "issues", "problem", "problems", "fix",
-            "fixes", "bug", "bugs", "error", "errors", "change", "changes", "update", "updates",
-            "version", "versions", "question", "questions", "answer", "answers", "reason", "reasons",
-            "context", "search", "report", "reports", "check", "checks", "status", "state", "states",
-            "running", "runs", "ran", "start", "started", "stop", "stopped", "keep", "kept",
-            "work", "works", "worked", "help", "helps", "helped", "needs", "needed",
-            "wanted", "wants", "tried", "trying", "using", "used", "uses",
-            "such", "then", "over", "under", "both", "each", "every",
-            "before", "after", "above", "below", "while", "other", "others", "same", "different", "new", "old",
-        ]);
+        // Candidate tags from the query: lowercase, de-duplicated, with function
+        // words, filler and the conversational tier removed (engine/stopwords.ts,
+        // the same sets as the rationale echo), so the tag boost never fires on
+        // "completely", "thats" or "fuck".
         const words = queryText.toLowerCase().replace(/[^a-z0-9\s-]/g, "").split(/\s+/)
-            .filter(w => w.length > 2 && !stopwords.has(w));
+            .filter(w => w.length > 2 && !isNoiseWord(w, RATIONALE_STOPWORDS));
         if (words.length === 0)
             return [];
         const tagWords = words.slice(0, 8);

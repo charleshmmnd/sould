@@ -16,6 +16,7 @@ import { isACANActive, scoreWithACAN } from "./acan.js";
 import { swallow } from "./errors.js";
 import { stripStructuralTags } from "./sanitize.js";
 import { isHarnessNotification } from "./harness-prompt.js";
+import { hasRetrievalSignal } from "./stopwords.js";
 import { clamp } from "./math.js";
 import { log } from "./log.js";
 // ── Cross-encoder reranker (bge-reranker-v2-m3) ──────────────────────────────
@@ -893,6 +894,13 @@ export function isEchoOfCurrentPrompt(r, queryText, cutoffMs) {
     // A stored harness notification is never useful past context (0.10.6);
     // rows written before the ingest-side skip are filtered here.
     if (isHarnessNotification(r.text))
+        return true;
+    // A turn with no topical word (venting, an acknowledgement, a laugh) is
+    // never useful past context either (0.10.9): what mattered about it lives in
+    // the correction or reflection the daemon distilled from it, which carries a
+    // topic and the severity and is retrieved on its own. Replaying the raw line
+    // on a later prompt that shares its swear word serves nobody.
+    if (!hasRetrievalSignal(r.text))
         return true;
     const ts = parseDatetimeMs(r.timestamp) ?? 0;
     if (ts <= 0 || ts >= cutoffMs)
@@ -1978,9 +1986,17 @@ stageTrace) {
             }
         }
         // Vector search + tag-boosted retrieval (cache miss path, run in parallel)
+        // A prompt with no signal word ("keep going", "fuck the bullshit", "AYooo")
+        // skips all three arms (0.10.9): its embedding is noise, its terms are
+        // noise, and on a graph built from one person's sessions every arm would
+        // return that person's own earlier venting. Recent turns and the rules
+        // suffix still go out, so the conversation carries the context.
         recordPrefetchMiss();
         mark("vector-search");
-        let [vectorResultsRaw, tagResults, ftsResults] = await Promise.all([
+        const noSignal = !hasRetrievalSignal(queryText);
+        if (noSignal)
+            log.debug("graph-context: prompt has no retrieval signal, skipping the retrieval arms");
+        let [vectorResultsRaw, tagResults, ftsResults] = noSignal ? [[], [], []] : await Promise.all([
             store.vectorSearch(queryVec, session.sessionId, vectorSearchLimits, isACANActive(), session.projectId || undefined),
             store.tagBoostedConcepts(queryText, queryVec, 10).catch(e => { swallow.warn("graph-context:tagBoost", e); return []; }),
             (typeof store.fulltextSearch === "function"

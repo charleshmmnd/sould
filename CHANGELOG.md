@@ -4,6 +4,18 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.9] - 2026-11-01
+
+### Fixed
+- **Venting retrieved venting.** On the live graph on 2026-11-01, every prompt with no topic in it fetched on its swear word, its contraction or its laugh: "fuck the bullshit" retrieved a memory on `fuck`; "thats on a machine i built" retrieved five nodes on `thats`, `machine`, `built`; "took it apart and it did not cooperate" two on `apart`, `cooperate`; "AYoooooooooooooo" and "hahhaha" one each; and the rows that came back were the user's own earlier venting turns, replayed as "Past Conversation". Three retrieval arms kept three hand-copied stopword lists, and the lexical (BM25) list was function words only, so a contraction without its apostrophe or a swear was a rare, high-IDF term that matched exactly those turns. Four changes:
+  - `src/engine/stopwords.ts` is the one stopword module: a function tier (the old lexical list), a conversational tier (contractions written without the apostrophe, interjections, acknowledgements, profanity) and a topic tier (the old rationale and tag-boost filler list, plus chat time words). `FTS_STOPWORDS` is function plus conversational; `RATIONALE_STOPWORDS` is all three. Stretched sounds ("AYoooo") and laughs in any spelling ("hahhaha", "lolol") are noise by shape. `extractSignalWords` is the shared keyword extractor and `hasRetrievalSignal` the yes/no.
+  - The lexical arm (`extractFtsTerms`), the tag boost (`tagBoostedConcepts`) and the RETRIEVAL RATIONALE echo all use the module. The rationale no longer counts a plain capitalized word as a technical token and no longer lists a path twice (once as the path, once de-punctuated).
+  - A prompt with no signal word skips all three retrieval arms and goes out with the recent turns and the rules suffix only (`graph-context: prompt has no retrieval signal` at debug level).
+  - A stored turn with no signal word is never past context: `isEchoOfCurrentPrompt` filters it the way it filters a harness notification. What mattered about such a turn lives in the correction or reflection the daemon distilled from it, which carries the topic and the severity and is retrieved on its own.
+
+### Tests
+- `test/fix-venting-retrieval-2026-11-01.test.ts` (16): the tier containment, the incident's prompts yielding no signal words and skipping retrieval, sounds and laughs by shape, capitalized words and paths in the extractor, the lexical arm dropping the conversational tier while keeping topic words for IDF, and stored venting turns filtered from past context while topical turns and non-turn rows pass.
+
 ## [0.10.8] - 2026-10-31
 
 ### Fixed
