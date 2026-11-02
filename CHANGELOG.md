@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.10] - 2026-11-01
+
 ### Fixed
 - **The cross-encoder ran the retrieval clock out and the whole result was thrown away.** On the live graph on 2026-11-01, `graphTransformContext` had timed out 505 times in one daemon.log, three of the last four prompts among them. Every recent failure died in `score-rerank`: the vector search (0.3 s in the database) and the graph expansion (0.04 s) had already delivered their nodes, then the cross-encoder, which runs on CPU because the GPU binding falls back at runtime while `SOULD_NO_GPU` stays unset so the budget stays at 15 s, chewed through the remaining budget and the wrapper discarded everything for the raw-message fallback. The expensive stages now size themselves to the time that is left (`graphTransformInner` receives the wrapper's absolute deadline):
   - A rerank that cannot start inside `RERANK_MIN_REMAINING_MS` (1.5 s) is skipped with distribution bands, a chunk that will not fit at the learned per-chunk cost (EWMA) is not started, and a partial rerank keeps the chunks it scored: the cross-scored head is re-sorted and the unreached tail keeps its vector order and its own bands. Nothing is dropped for a cross score it was never given.
