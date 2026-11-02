@@ -81,6 +81,35 @@ const RERANK_QUEUE_MAX =
   Number(process.env.SOULD_RERANK_QUEUE_MAX) > 0
     ? Number(process.env.SOULD_RERANK_QUEUE_MAX)
     : 512;
+// Budget awareness (2026-11-01). On the live graph the transform died 505 times
+// in one daemon.log, every recent one in score-rerank: vector search and graph
+// expansion had already delivered their nodes, then the cross-encoder (CPU, no
+// GPU binding) ran the 15s transform clock out and the wrapper threw the whole
+// result away for a raw-message fallback. The cross-encoder now gets the time
+// that is LEFT and never more: a rerank that cannot start inside
+// RERANK_MIN_REMAINING_MS is skipped, a chunk that will not fit is not started,
+// a queued job whose deadline passed is dropped without compute (so it stops
+// stealing the next prompt's CPU), and a partial rerank keeps the chunks it
+// scored instead of discarding them. A budget-bound stop is not a compute
+// timeout and never counts toward the breaker.
+const RERANK_MIN_REMAINING_MS = Number(process.env.SOULD_RERANK_MIN_REMAINING_MS) || 1_500;
+const RERANK_DEADLINE_MARGIN_MS = Number(process.env.SOULD_RERANK_DEADLINE_MARGIN_MS) || 1_200;
+const GRAPH_EXPAND_MIN_REMAINING_MS = Number(process.env.SOULD_GRAPH_EXPAND_MIN_REMAINING_MS) || 3_000;
+let _rerankChunkMsEwma = 0;
+let _rerankBudgetDrops = 0;
+let _rerankBudgetSkips = 0;
+let _rerankPartials = 0;
+/** Test seam: budget counters and the learned per-chunk cost. */
+export function _rerankBudgetStatsForTest(): { drops: number; skips: number; partials: number; chunkMsEwma: number } {
+  return { drops: _rerankBudgetDrops, skips: _rerankBudgetSkips, partials: _rerankPartials, chunkMsEwma: _rerankChunkMsEwma };
+}
+export function _resetRerankBudgetStatsForTest(): void {
+  _rerankChunkMsEwma = 0; _rerankBudgetDrops = 0; _rerankBudgetSkips = 0; _rerankPartials = 0;
+}
+/** Will one more cross-encoder chunk, at the cost measured so far, finish before the deadline? */
+function chunkFitsBudget(deadlineAt: number): boolean {
+  return Date.now() + _rerankChunkMsEwma <= deadlineAt;
+}
 
 let _rerankConsecutiveTimeouts = 0;
 let _rerankBreakerOpenedAt: number | null = null;
@@ -102,6 +131,8 @@ interface RerankQueueItem {
   query: Token[];
   docs: Token[][];
   enqueuedAt: number;
+  /** Absolute ms; past it the job is dropped at dequeue and its compute clock is capped. */
+  deadlineAt?: number;
   resolve: (v: number[] | null) => void;
   reject: (e: Error) => void;
 }
@@ -151,6 +182,12 @@ async function drainRerankQueue(): Promise<void> {
   try {
     while (_rerankQueue.length > 0) {
       const item = _rerankQueue.shift()!;
+      if (item.deadlineAt != null && Date.now() >= item.deadlineAt) {
+        // its transform already gave up; computing now would only delay the next prompt
+        _rerankBudgetDrops++;
+        item.resolve(null);
+        continue;
+      }
       if (_rerankConsecutiveTimeouts >= RERANK_MAX_CONSECUTIVE_TIMEOUTS) {
         if (_rerankBreakerOpenedAt == null) _rerankBreakerOpenedAt = Date.now();
         if (Date.now() - _rerankBreakerOpenedAt < RERANK_BREAKER_COOLDOWN_MS) {
@@ -175,6 +212,9 @@ async function computeRankAndSettle(item: RerankQueueItem): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const startedAt = Date.now();
   const probing = _rerankConsecutiveTimeouts >= RERANK_MAX_CONSECUTIVE_TIMEOUTS;
+  const budgetMs = item.deadlineAt != null ? item.deadlineAt - startedAt : Infinity;
+  const budgetBound = budgetMs < RERANK_TIMEOUT_MS;
+  const clockMs = Math.max(1, Math.min(RERANK_TIMEOUT_MS, budgetMs));
   try {
     const scores = await Promise.race([
       item.ctx.rankAll(item.query, item.docs),
@@ -183,14 +223,18 @@ async function computeRankAndSettle(item: RerankQueueItem): Promise<void> {
           () =>
             reject(
               new Error(
-                `rankAll timed out after ${RERANK_TIMEOUT_MS}ms` +
-                ` (compute clock; spent ${startedAt - item.enqueuedAt}ms queued first)`,
+                budgetBound
+                  ? `rankAll budget exhausted after ${clockMs}ms of the transform's remaining time`
+                  : `rankAll timed out after ${RERANK_TIMEOUT_MS}ms` +
+                    ` (compute clock; spent ${startedAt - item.enqueuedAt}ms queued first)`,
               ),
             ),
-          RERANK_TIMEOUT_MS,
+          clockMs,
         );
       }),
     ]);
+    const took = Date.now() - startedAt;
+    _rerankChunkMsEwma = _rerankChunkMsEwma > 0 ? 0.7 * _rerankChunkMsEwma + 0.3 * took : took;
     // Success closes the breaker.
     if (_rerankConsecutiveTimeouts > 0 || probing) {
       log.warn("[rerank] cross-encoder recovered — timeout breaker closed");
@@ -199,6 +243,12 @@ async function computeRankAndSettle(item: RerankQueueItem): Promise<void> {
     _rerankBreakerOpenedAt = null;
     item.resolve(scores);
   } catch (e) {
+    if (e instanceof Error && e.message.includes("budget exhausted")) {
+      // the transform's clock, not the model's: fall back quietly, breaker untouched
+      _rerankBudgetDrops++;
+      item.resolve(null);
+      return;
+    }
     if (e instanceof Error && e.message.includes("timed out")) {
       _rerankConsecutiveTimeouts++;
       if (_rerankConsecutiveTimeouts >= RERANK_MAX_CONSECUTIVE_TIMEOUTS) {
@@ -228,7 +278,9 @@ async function rankAllWithDeadline(
   ctx: LlamaRankingContext,
   query: Token[],
   docs: Token[][],
+  deadlineAt?: number,
 ): Promise<number[] | null> {
+  if (deadlineAt != null && Date.now() >= deadlineAt) { _rerankBudgetDrops++; return null; }
   // Fast-path the already-open breaker without enqueuing: avoids growing the
   // FIFO with work that would just resolve null at dequeue anyway.
   if (rerankBreakerOpen()) return null;
@@ -240,7 +292,7 @@ async function rankAllWithDeadline(
     );
   }
   return new Promise<number[] | null>((resolve, reject) => {
-    _rerankQueue.push({ ctx, query, docs, enqueuedAt: Date.now(), resolve, reject });
+    _rerankQueue.push({ ctx, query, docs, enqueuedAt: Date.now(), deadlineAt, resolve, reject });
     void drainRerankQueue();
   });
 }
@@ -308,8 +360,10 @@ export function isRerankerActive(): boolean { return _rankingCtx !== null; }
 export async function crossEncoderScorePairs(
   anchor: string,
   docs: string[],
+  deadlineAt?: number,
 ): Promise<number[] | null> {
   if (!_rankingCtx || docs.length === 0) return null;
+  if (deadlineAt != null && deadlineAt - Date.now() < RERANK_MIN_REMAINING_MS) { _rerankBudgetSkips++; return null; }
   // K13: skip compute entirely while the breaker is open so a wedged
   // cross-encoder can't hang evaluateRetrieval on the Stop path.
   if (rerankBreakerOpen()) return null;
@@ -319,8 +373,9 @@ export async function crossEncoderScorePairs(
     const scores: number[] = new Array(docTokens.length);
     for (let start = 0; start < docTokens.length; start += RERANK_CHUNK_SIZE) {
       const end = Math.min(start + RERANK_CHUNK_SIZE, docTokens.length);
-      const chunk = await rankAllWithDeadline(_rankingCtx, anchorTokens, docTokens.slice(start, end));
-      if (chunk == null) return null; // breaker opened mid-batch
+      if (start > 0 && deadlineAt != null && !chunkFitsBudget(deadlineAt)) return null;
+      const chunk = await rankAllWithDeadline(_rankingCtx, anchorTokens, docTokens.slice(start, end), deadlineAt);
+      if (chunk == null) return null; // breaker opened or budget gone mid-batch
       for (let i = 0; i < chunk.length; i++) scores[start + i] = chunk[i];
       if (end < docTokens.length) await new Promise<void>(r => setImmediate(r));
     }
@@ -392,6 +447,7 @@ export function applyDistributionBands<T extends { finalScore?: number; band?: S
 export async function rerankResults<T extends { id: string; text?: string; finalScore: number; crossScore?: number; band?: SalienceBand }>(
   deduped: T[],
   queryText: string,
+  opts: { deadlineAt?: number } = {},
 ): Promise<T[]> {
   if (deduped.length <= 5) return deduped;
   const loaded = await ensureRerankerLoaded();
@@ -399,6 +455,13 @@ export async function rerankResults<T extends { id: string; text?: string; final
   // K13: breaker open → skip the cross-encoder and band by distribution so the
   // formatter still gets salience anchors instead of raw relevance %.
   if (rerankBreakerOpen()) {
+    applyDistributionBands(deduped);
+    return deduped;
+  }
+  const deadlineAt = opts.deadlineAt;
+  if (deadlineAt != null && deadlineAt - Date.now() < RERANK_MIN_REMAINING_MS) {
+    _rerankBudgetSkips++;
+    log.debug(`[rerank] skipped: ${Math.max(0, deadlineAt - Date.now())}ms of the transform budget left`);
     applyDistributionBands(deduped);
     return deduped;
   }
@@ -421,23 +484,31 @@ export async function rerankResults<T extends { id: string; text?: string; final
     }
     const scored = candidates.slice(0, docTokens.length);
     const crossScores: number[] = new Array(docTokens.length);
+    let scoredCount = 0;
+    let partial = false;
     for (let start = 0; start < docTokens.length; start += RERANK_CHUNK_SIZE) {
       const end = Math.min(start + RERANK_CHUNK_SIZE, docTokens.length);
+      if (start > 0 && deadlineAt != null && !chunkFitsBudget(deadlineAt)) { partial = true; break; }
       // K13: each chunk under the deadline + breaker. null = breaker tripped
       // mid-batch; bail to the catch's WMR/distribution fallback below.
-      const chunkScores = await rankAllWithDeadline(_rankingCtx, qTokens, docTokens.slice(start, end));
+      const chunkScores = await rankAllWithDeadline(_rankingCtx, qTokens, docTokens.slice(start, end), deadlineAt);
       if (chunkScores == null) {
-        applyDistributionBands(deduped);
-        return deduped;
+        if (start === 0) {
+          applyDistributionBands(deduped);
+          return deduped;
+        }
+        partial = true;
+        break;
       }
       for (let i = 0; i < chunkScores.length; i++) {
         crossScores[start + i] = chunkScores[i];
       }
+      scoredCount = end;
       if (end < docTokens.length) {
         await new Promise<void>(resolve => setImmediate(resolve));
       }
     }
-    for (let i = 0; i < scored.length; i++) {
+    for (let i = 0; i < scoredCount; i++) {
       const cs = crossScores[i];
       scored[i].crossScore = cs;
       scored[i].band = bandFor(cs);
@@ -446,14 +517,25 @@ export async function rerankResults<T extends { id: string; text?: string; final
         RERANK_BLEND_CROSS * cs;
     }
     // Drop hard-noise (cross-encoder strongly disagrees) before re-sorting.
-    const survivors = scored.filter((c) => (c.crossScore ?? 0) >= BAND_DROP_BELOW);
+    const crossScored = scored.slice(0, scoredCount);
+    // candidates the budget never reached keep their vector order and a band
+    // from their own score distribution; nothing is dropped for a cross score
+    // it was never given
+    const unscored = scored.slice(scoredCount);
+    if (partial) {
+      _rerankPartials++;
+      log.debug(`[rerank] partial: ${scoredCount}/${scored.length} candidates cross-scored inside the budget; the rest keep their vector order`);
+      applyDistributionBands(unscored);
+    }
+    const survivors = [...crossScored.filter((c) => (c.crossScore ?? 0) >= BAND_DROP_BELOW), ...unscored];
     survivors.sort((a, b) => b.finalScore - a.finalScore);
     // K40: all-dropped floor. If the cross-encoder disagreed with WMR on EVERY
     // candidate (survivors empty) but we did score some, never zero out the
     // whole result set — that would strand the turn with no recalled_memory at
     // all. Keep the top-N by blended finalScore so the strongest items still
     // ship; they keep their bands so the formatter renders salience honestly.
-    if (survivors.length === 0 && scored.length > 0) {
+    if (survivors.length === 0 && crossScored.length > 0) {
+      const scored = crossScored;
       const floored = [...scored].sort((a, b) => b.finalScore - a.finalScore);
       // 0.10.8: the line fires on most prompts of a mature graph; carry the
       // score shape so the log can tell "everything is faintly related"
@@ -1999,12 +2081,18 @@ export async function graphTransformContext(
   const stageTrace: TransformStageTrace = { marks: [] };
   try {
     const result = await Promise.race([
-      graphTransformInner(messages, session, store, embeddings, contextWindow, budgets, signal, tier0ForSys, stageTrace),
+      graphTransformInner(messages, session, store, embeddings, contextWindow, budgets, signal, tier0ForSys, stageTrace, transformStartedAt + TRANSFORM_TIMEOUT_MS),
       new Promise<never>((_, reject) => {
         transformTimer = setTimeout(() => reject(new Error("graphTransformContext timed out")), TRANSFORM_TIMEOUT_MS);
       }),
     ]);
     recordTransformOutcome(true);
+    {
+      const endAt = Date.now();
+      const ms = stageTrace.marks;
+      const stages = ms.map((m, i) => `${m.stage}(${(i + 1 < ms.length ? ms[i + 1].at : endAt) - m.at}ms)`).join(" ");
+      log.debug(`graphTransformContext ok in ${endAt - transformStartedAt}ms of ${TRANSFORM_TIMEOUT_MS}ms: ${stages}`);
+    }
     result.systemPromptSection = systemPromptSection;
     return result;
   } catch (err) {
@@ -2051,8 +2139,12 @@ async function graphTransformInner(
   tier0FromWrapper: CoreMemoryEntry[] = [],
   /** B17 stage trace owned by the wrapper — marks stage STARTS. */
   stageTrace?: TransformStageTrace,
+  /** Absolute ms at which the wrapper's clock fires; the expensive stages size themselves to what is left. */
+  deadlineAt?: number,
 ): Promise<GraphTransformResult> {
   const mark = (stage: string): void => { stageTrace?.marks.push({ stage, at: Date.now() }); };
+  const rerankDeadline = deadlineAt != null ? deadlineAt - RERANK_DEADLINE_MARGIN_MS : undefined;
+  const budgetLeft = (): number => (deadlineAt != null ? deadlineAt - Date.now() : Infinity);
   // K6-gc: honor the deadline AbortSignal. The wrapper's Promise.race rejects
   // on timeout and returns raw messages, but the inner pipeline kept running —
   // a leaked, post-deadline computation that still burned CPU and (worse) wrote
@@ -2185,7 +2277,7 @@ async function graphTransformInner(
       const ranked = await scoreResults(filteredCached, new Set(), queryVec, store, currentIntent);
       const deduped = deduplicateResults(ranked);
       checkAbort(); // K6-gc: don't burn the CPU-bound cross-encoder post-deadline
-      const reranked = await rerankResults(deduped, queryText);
+      const reranked = await rerankResults(deduped, queryText, { deadlineAt: rerankDeadline });
       applyDistributionBands(reranked);
       const diversified = mmrReorder(reranked);
       let contextNodes = takeWithConstraints(diversified, tokenBudget, budgets.maxContextItems);
@@ -2310,11 +2402,13 @@ async function graphTransformInner(
     // Skills + reflections only need queryVec — no dependency on graph results.
     const SKILL_INTENTS = new Set(["code-write", "code-debug", "multi-step", "code-read"]);
     mark("graph-expand");
+    const expandOk = budgetLeft() >= GRAPH_EXPAND_MIN_REMAINING_MS;
+    if (!expandOk) log.debug(`graph-context: ${Math.max(0, budgetLeft())}ms of the transform budget left, skipping graph expansion and causal context`);
     const [expandResult, causalResult, skillsFound, reflectionsFound] = await Promise.all([
-      topIds.length > 0
+      expandOk && topIds.length > 0
         ? store.graphExpand(topIds, queryVec, graphHops).catch(e => { swallow.error("graph-context:graphExpand", e); return [] as VectorSearchResult[]; })
         : Promise.resolve([] as VectorSearchResult[]),
-      topIds.length > 0 && queryVec
+      expandOk && topIds.length > 0 && queryVec
         ? queryCausalContext(topIds, queryVec, 2, 0.4, store).catch(e => { swallow("graph-context:causal", e); return [] as VectorSearchResult[]; })
         : Promise.resolve([] as VectorSearchResult[]),
       // 0.10.5: skills for every intent. Code-shaped intents keep five slots
@@ -2322,7 +2416,7 @@ async function graphTransformInner(
       // gets two slots at a 0.55 floor, so a routine surfaces on the prompt
       // that names it without riding along on unrelated ones.
       findRelevantSkills(queryVec, SKILL_INTENTS.has(currentIntent) ? 5 : 2, store, {
-        queryText, rerank: crossEncoderScorePairs,
+        queryText, rerank: (anchor: string, docs: string[]) => crossEncoderScorePairs(anchor, docs, rerankDeadline),
         minScore: SKILL_INTENTS.has(currentIntent) ? undefined : 0.55,
       }).catch(e => { swallow("graph-context:skills", e); return [] as import("./skills.js").Skill[]; }),
       retrieveReflections(queryVec, 5, store, session.projectId || undefined)
@@ -2357,7 +2451,7 @@ async function graphTransformInner(
     const ranked = await scoreResults(allResults, neighborIds, queryVec, store, currentIntent);
     const deduped = deduplicateResults(ranked);
     checkAbort(); // K6-gc: don't burn the CPU-bound cross-encoder post-deadline
-    const reranked = await rerankResults(deduped, queryText);
+    const reranked = await rerankResults(deduped, queryText, { deadlineAt: rerankDeadline });
     applyDistributionBands(reranked);
     let contextNodes = takeWithConstraints(reranked, tokenBudget, budgets.maxContextItems);
     mark("recent-turns");
