@@ -26,7 +26,7 @@
  *
  * Env: SURREAL_URL/USER/PASS/NS/DB (same defaults as backup-jsonl.mjs).
  */
-import { Surreal } from "/home/zero/voidorigin/sould/node_modules/surrealdb/dist/surrealdb.mjs";
+import { Surreal } from "surrealdb";
 
 const URL = process.env.SURREAL_URL || "ws://127.0.0.1:8000/rpc";
 import { resolveScriptCred } from "./surreal-cred.mjs";
