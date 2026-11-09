@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.12] - 2026-11-09
+
 ### Fixed
 - **The release build could no longer finish.** GitHub retired every macOS 14 runner on 2026-11-02. The v0.10.11 tag built Windows and both Linux targets, then the `macos-14` job was refused ("The configuration 'macos-14-arm64-us-default' is not supported"), the run ended cancelled and no GitHub release was created. The darwin-arm64 job now runs on `macos-15`. v0.10.11 carries the same code as this release (the supersede and forget fixes) but has no published artifacts.
 
