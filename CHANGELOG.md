@@ -4,6 +4,14 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+### Fixed
+- **Superseding one note retired every note on the topic.** On the live graph, 5 of the 8 corrections saved between 2026-11-01 and 2026-11-09 retired 4 to 10 notes each. The 2026-11-09 correction to one Art Work Painting pause note also retired the LeadForge per-client pause flag design note, the billing history and the fact about who runs the account, none of which it contradicted, and two of them had to be saved again by hand. `commitCorrection` took every candidate at or above 0.70 among the top 5 concepts plus the top 5 memories. Scores recomputed for all 33 corrections since 2026-10-01 show the real target is the best match, and a true duplicate of it (the same fact held as both a concept and a memory) scores 0.85 or higher and within about 0.02 of the best; everything further down is a neighbour on the same topic. Now only the best match is retired, plus candidates at `COMMIT_SUPERSEDE_TWIN_MIN` (0.85) or higher and within `COMMIT_SUPERSEDE_TWIN_MARGIN` (0.03) of it. The rest are left alone and listed in `skipped_by_guard`, and the tool message says how to retire one of them if it is stale too. The exact-content short-circuit and the long-body guard are unchanged.
+  - Not done here: the notes wrongly retired before this fix are still retired. Restoring them is a per-note judgement.
+- **`scripts/forget.mjs` could not start on any machine but the one it was written on.** It imported `surrealdb` from an absolute path under another user's home directory. It now imports the package by name. Its tests skip when no database is reachable, which hid the failure.
+
+### Tests
+- `test/knowledge-write-guards.test.ts` (2 added): a stale note, its duplicate and three same-topic neighbours, where only the first two are retired and the neighbours are reported and untouched; and a flat cluster of weak matches, where only the single best is retired. Both fail on the old code.
+
 ## [0.10.10] - 2026-11-01
 
 ### Fixed
