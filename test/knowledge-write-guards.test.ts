@@ -118,6 +118,32 @@ beforeAll(async () => {
   const longDoc2 = `Operations runbook: the sould daemon historically used port 18765 by default before the UID-offset scheme. `.repeat(4);
   await store.queryExec(`CREATE concept:kwg_longdoc2 SET content = $c, embedding = $e, stability = 1.0`, { c: longDoc2, e: mix(60, 62, 0.75) });
   EMBED_MAP.set("daemon default port is 18765", mix(60, 63, 1.0)); // = unit(60) → cosine 0.75 vs both
+
+  // ── topic-sweep seeds (2026-11-09 incident shape) ──
+  // One stale belief, its duplicate, and three still-true notes about the
+  // same client. All comparable in length to the old_text, so the long-body
+  // guard is not what protects the neighbours here.
+  const sweep: Array<[string, string, number, number]> = [
+    ["kwg_sweep_target", "client ad campaigns are paused until he pays", 101, 0.94],
+    ["kwg_sweep_twin", "client ad campaigns paused until payment arrives", 102, 0.92],
+    ["kwg_sweep_near", "client campaign pauses when paid days run out", 103, 0.86],
+    ["kwg_sweep_topic", "client assistant runs the day to day account", 104, 0.77],
+    ["kwg_sweep_far", "client first statement was billed in august", 105, 0.6],
+  ];
+  for (const [id, c, other, cos] of sweep) {
+    await store.queryExec(`CREATE concept:${id} SET content = $c, embedding = $e, stability = 1.0`, { c, e: mix(100, other, cos) });
+  }
+  EMBED_MAP.set("client ad campaigns are all paused until he pays", unit(100));
+  // Flat weak cluster: nothing is a strong match, three notes barely clear 0.70.
+  const flat: Array<[string, string, number, number]> = [
+    ["kwg_flat_a", "print room page was built for the gallery", 111, 0.723],
+    ["kwg_flat_b", "print room idea is queued and not yet built", 112, 0.719],
+    ["kwg_flat_c", "print room plates load from the plate shelf", 113, 0.708],
+  ];
+  for (const [id, c, other, cos] of flat) {
+    await store.queryExec(`CREATE concept:${id} SET content = $c, embedding = $e, stability = 1.0`, { c, e: mix(110, other, cos) });
+  }
+  EMBED_MAP.set("print room page exists and is live today", unit(110));
 }, 30_000);
 
 afterAll(async () => {
@@ -202,5 +228,32 @@ describe("supersede collateral guard (incident fix)", () => {
     const doc2Stab = await scalar<number>(`SELECT VALUE stability FROM concept:kwg_longdoc2`);
     expect(beliefStab).toBeLessThan(1.0);
     expect(doc2Stab).toBe(1.0);
+  });
+});
+
+describe("supersede topic-sweep guard (2026-11-09 incident fix)", () => {
+  itDb("retires the best match and its duplicate; same-topic neighbours survive and are reported", async () => {
+    const r = await callSupersede("client ad campaigns are all paused until he pays", "ads were never paused");
+    // pre-fix: all four notes at or above 0.70 were retired
+    expect([...r.superseded_ids].sort()).toEqual(["concept:kwg_sweep_target", "concept:kwg_sweep_twin"]);
+    const skipped = (r.skipped_by_guard as Array<{ id: string; reason: string }>);
+    expect(skipped.map((s) => s.id).sort()).toEqual(["concept:kwg_sweep_near", "concept:kwg_sweep_topic"]);
+    for (const s of skipped) expect(s.reason).toContain("same-topic neighbour");
+    expect(r.message).toContain("Left 2 related items untouched");
+    for (const id of ["kwg_sweep_near", "kwg_sweep_topic", "kwg_sweep_far"]) {
+      expect(await scalar<number>(`SELECT VALUE stability FROM concept:${id}`)).toBe(1.0);
+      expect(await scalar<unknown>(`SELECT VALUE superseded_at FROM concept:${id}`)).toBeFalsy();
+    }
+    for (const id of ["kwg_sweep_target", "kwg_sweep_twin"]) {
+      expect(await scalar<number>(`SELECT VALUE stability FROM concept:${id}`)).toBeLessThan(1.0);
+    }
+  });
+
+  itDb("flat weak cluster: only the single best match is retired, never the whole cluster", async () => {
+    const r = await callSupersede("print room page exists and is live today", "print room was taken down");
+    expect(r.superseded_ids).toEqual(["concept:kwg_flat_a"]);
+    expect((r.skipped_by_guard as Array<{ id: string }>).map((s) => s.id).sort()).toEqual(["concept:kwg_flat_b", "concept:kwg_flat_c"]);
+    expect(await scalar<number>(`SELECT VALUE stability FROM concept:kwg_flat_b`)).toBe(1.0);
+    expect(await scalar<number>(`SELECT VALUE stability FROM concept:kwg_flat_c`)).toBe(1.0);
   });
 });

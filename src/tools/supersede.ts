@@ -70,7 +70,10 @@ export async function handleSupersede(
           ? (skipped.length > 0
             ? "No target superseded: the only candidates above threshold were long-form items that merely reference the old_text (see skipped_by_guard). If one is the real target, re-run with old_text matching its content exactly."
             : "Correction stored but no concepts matched the old text above threshold — consider rephrasing the old_text to better match existing concept content.")
-          : `Marked ${superseded} concept${superseded === 1 ? "" : "s"} as superseded.`,
+          : `Marked ${superseded} item${superseded === 1 ? "" : "s"} as superseded.`
+            + (skipped.length > 0
+              ? ` Left ${skipped.length} related item${skipped.length === 1 ? "" : "s"} untouched (see skipped_by_guard). If one of those is also stale, call supersede again with old_text matching its content exactly.`
+              : ""),
       }, null, 2),
     }],
   };

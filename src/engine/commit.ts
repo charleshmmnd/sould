@@ -1085,6 +1085,19 @@ const COMMIT_SUPERSEDE_THRESHOLD = 0.70;
  *  can verify nothing legitimate was excluded. */
 const COMMIT_SUPERSEDE_LONG_BODY_RATIO = 4;
 const COMMIT_SUPERSEDE_LONG_BODY_STRICT = 0.85;
+/** Topic-sweep guard (2026-11-09 incident): one supersede call used to retire
+ *  EVERY candidate at or above 0.70 among the top 5 concepts plus top 5
+ *  memories, so correcting one note about a client retired up to ten notes
+ *  about that client, most of them still true (5 of 8 corrections in
+ *  November 2026 retired 4 to 10 notes each). Measured over 33 corrections:
+ *  the real target is the best match, and a true duplicate of it (the same
+ *  fact stored as both a concept and a memory) scores 0.85 or higher and
+ *  within about 0.02 of the best. Anything further down is a neighbour on
+ *  the same topic. So only the best match is retired, plus candidates that
+ *  clear TWIN_MIN and sit within TWIN_MARGIN of it; the rest are reported
+ *  in skippedByGuard and left alone. */
+const COMMIT_SUPERSEDE_TWIN_MIN = 0.85;
+const COMMIT_SUPERSEDE_TWIN_MARGIN = 0.03;
 /** Multiplicative decay applied to a superseded concept's stability score. */
 const COMMIT_STABILITY_DECAY_FACTOR = 0.4;
 /** Floor: don't decay below this so the concept remains discoverable. */
@@ -1192,6 +1205,7 @@ async function commitCorrection(
         if (exact.length > 0) {
           for (const c of exact) targets.push({ id: c.id, kind: c.kind, stability: c.stability });
         } else {
+          const eligible: Cand[] = [];
           for (const c of all) {
             if (c.score < COMMIT_SUPERSEDE_THRESHOLD) continue;
             const longBody = c.content.trim().length > COMMIT_SUPERSEDE_LONG_BODY_RATIO * oldLen;
@@ -1204,7 +1218,24 @@ async function commitCorrection(
               });
               continue;
             }
-            targets.push({ id: c.id, kind: c.kind, stability: c.stability });
+            eligible.push(c);
+          }
+          // (3) topic-sweep guard: retire the best match and its true
+          //     duplicates only; report same-topic neighbours, don't touch them.
+          eligible.sort((a, b) => b.score - a.score);
+          const best = eligible[0];
+          for (const c of eligible) {
+            const isTwin = c.score >= COMMIT_SUPERSEDE_TWIN_MIN && best.score - c.score <= COMMIT_SUPERSEDE_TWIN_MARGIN;
+            if (c === best || isTwin) {
+              targets.push({ id: c.id, kind: c.kind, stability: c.stability });
+              continue;
+            }
+            skippedByGuard.push({
+              id: c.id,
+              kind: c.kind,
+              score: Number(c.score.toFixed(3)),
+              reason: `same-topic neighbour, not the closest match (score ${c.score.toFixed(3)} vs best ${best.score.toFixed(3)}; a duplicate of the target needs ${COMMIT_SUPERSEDE_TWIN_MIN} or higher and within ${COMMIT_SUPERSEDE_TWIN_MARGIN} of the best)`,
+            });
           }
         }
       }
