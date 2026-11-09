@@ -4,6 +4,9 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+### Changed
+- **The release no longer builds a Mac binary.** v0.10.12 moved the darwin-arm64 job from the retired `macos-14` to `macos-15`; the job was accepted but GitHub never gave it a machine. Two attempts on 2026-11-09 each sat queued about 15 minutes and ended "The job was not acquired by Runner of type hosted", under GitHub's notice about macOS arm64 capacity constraints, so the release job was skipped and neither v0.10.11 nor v0.10.12 published anything. Nobody runs Sould on a Mac, so the job is out of the matrix (the same call made earlier for Intel Mac) and a Mac user gets the launcher's JS-fallback path. The workflow comment says how to re-add it. This release carries the same code as v0.10.11 and v0.10.12 (the supersede and forget fixes) and is the first of the three with artifacts.
+
 ## [0.10.12] - 2026-11-09
 
 ### Fixed
