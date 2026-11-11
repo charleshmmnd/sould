@@ -25,6 +25,15 @@ export declare function subjectDfCeiling(total: number): number;
  */
 export declare function buildSubjectBrief(store: SubjectBriefStore, session: SessionState, toolName: string, toolInput: Record<string, unknown> | undefined, now?: number): Promise<string | null>;
 /**
+ * True when the notes write the word as a name: with a leading capital more
+ * often than in plain lower case. Occurrences inside a path, domain, file
+ * name or identifier (whimstay.com, ingest_whimstay.py) say nothing either
+ * way and are not counted.
+ */
+export declare function writtenAsName(word: string, rows: Array<{
+    text: string;
+}>): boolean;
+/**
  * A prompt with no retrieval signal re-arms subjects briefed two or more user
  * turns ago, so the next tool call that names one is briefed again. Called
  * from UserPromptSubmit before the turn counter moves. The two-turn gap keeps

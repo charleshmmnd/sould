@@ -34,6 +34,7 @@ export const SUBJECT_MAX_DF_SHARE = 0.014;
 export const SUBJECT_MAX_DF_FLOOR = 40;
 const MAX_NEW_TERMS_PER_CALL = 12;
 const MAX_TERMS_PER_BRIEF = 2;
+const MAX_TERMS_CHECKED = 4;
 const NOTES_PER_TERM = 3;
 const NOTE_CHARS = 380;
 const MAX_BRIEFS_PER_SESSION = 16;
@@ -95,7 +96,9 @@ export function toolInputSubjectText(toolName, toolInput) {
         text = pick("file_path", "notebook_path");
     }
     else if (toolName === "Bash") {
-        text = pick("command", "description");
+        // A heredoc is a file body in a command's clothing: cut it at the marker.
+        const cmd = typeof toolInput.command === "string" ? toolInput.command.replace(/<<-?\s*['"]?\w+['"]?[\s\S]*$/, "") : "";
+        text = [cmd, pick("description")].join(" ");
     }
     else if (toolName === "Grep" || toolName === "Glob") {
         text = pick("pattern", "path", "glob");
@@ -218,6 +221,32 @@ async function brief(store, session, toolName, toolInput, now) {
     session._subjectBriefCount += 1;
     return found.text;
 }
+/**
+ * True when the notes write the word as a name: with a leading capital more
+ * often than in plain lower case. Occurrences inside a path, domain, file
+ * name or identifier (whimstay.com, ingest_whimstay.py) say nothing either
+ * way and are not counted.
+ */
+export function writtenAsName(word, rows) {
+    const re = new RegExp(`(^|[^A-Za-z])(${word})(?![a-z])(.?)`, "gi");
+    let capital = 0;
+    let lower = 0;
+    for (const r of rows) {
+        const text = String(r.text ?? "");
+        for (const m of text.matchAll(re)) {
+            if (/[._/\\@=-]/.test(m[1]) || /[._/\\(=-]/.test(m[3]) && m[3] !== ".")
+                continue;
+            if (m[3] === "." && /[a-z]/i.test(text[(m.index ?? 0) + m[0].length] ?? ""))
+                continue;
+            const first = m[2][0];
+            if (first === first.toUpperCase())
+                capital += 1;
+            else
+                lower += 1;
+        }
+    }
+    return capital >= 1 && capital > lower;
+}
 async function lookUp(store, session, fresh, now) {
     const total = await memoryCount(store, now);
     const ceiling = subjectDfCeiling(total);
@@ -231,15 +260,16 @@ async function lookUp(store, session, fresh, now) {
     }
     if (subjects.length === 0)
         return null;
-    // The rarest word is the most name-like. The rest stay un-briefed, so a
-    // later call that names them again gets its own brief.
+    // Rarest first: the rarest word is the most likely to be a name.
     subjects.sort((a, b) => a.n - b.n);
-    const chosen = subjects.slice(0, MAX_TERMS_PER_BRIEF);
     // Notes this session wrote are already in the model's window.
     const before = new Date(session.createdAtMs);
     const seenNotes = new Set();
     const sections = [];
-    for (const { w, n } of chosen) {
+    const terms = [];
+    for (const { w, n } of subjects.slice(0, MAX_TERMS_CHECKED)) {
+        if (sections.length >= MAX_TERMS_PER_BRIEF)
+            break;
         const where = `text @1@ $t AND ${LIVE} AND created_at < $before`;
         const [rows, corrections] = await Promise.all([
             store.queryFirst(`SELECT id, text, created_at FROM memory WHERE ${where} ORDER BY created_at DESC LIMIT ${NOTES_PER_TERM}`, { t: w, before }),
@@ -249,6 +279,15 @@ async function lookUp(store, session, fresh, now) {
             store.queryFirst(`SELECT id, text, created_at FROM memory WHERE ${where} AND string::starts_with(text, '[CORRECTION]') ` +
                 `ORDER BY created_at DESC LIMIT 1`, { t: w, before }),
         ]);
+        // Frequency alone lets ordinary words through ("handlers" 83 notes,
+        // "marketplace" 34, both briefed on the first live call, both noise).
+        // A subject is a name, and the notes show it: they write it with a
+        // capital in the middle of a sentence.
+        if (!writtenAsName(w, rows)) {
+            session._subjectTermsRejected.add(w);
+            continue;
+        }
+        terms.push(w);
         const lines = [...rows, ...corrections]
             .filter((r) => { const k = String(r.id); if (seenNotes.has(k))
             return false; seenNotes.add(k); return true; })
@@ -256,7 +295,6 @@ async function lookUp(store, session, fresh, now) {
         if (lines.length > 0)
             sections.push(`"${w}" (${n} notes in memory), newest first:\n${lines.join("\n")}`);
     }
-    const terms = chosen.map((c) => c.w);
     if (sections.length === 0)
         return { terms, text: null };
     return { terms, text: [

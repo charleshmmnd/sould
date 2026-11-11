@@ -65,9 +65,13 @@ export function pushReminderOwed(command, pending, hasWorkflows) {
 }
 export async function handlePreToolUse(state, payload) {
     const sessionId = payload.session_id ?? "default";
-    const session = state.getSession(sessionId);
-    if (!session)
-        return {};
+    // 0.10.15: a daemon that restarts in the middle of a turn has no session
+    // objects until the next prompt makes one, so every tool call in the rest
+    // of that turn used to get nothing from this hook: no gates, no subject
+    // brief. Seen live on 2026-11-11, twice in fifteen minutes during a long
+    // turn. Make the in-memory session here, as UserPromptSubmit does; the
+    // database rows are still backfilled by the next prompt.
+    const session = state.getSession(sessionId) ?? state.getOrCreateSession(sessionId, sessionId);
     const toolName = payload.tool_name ?? "";
     session.toolCallCount++;
     // ── Observation pass (must run before any gate) ───────────────────────

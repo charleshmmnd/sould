@@ -4,6 +4,14 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+### Fixed
+- **The subject brief fired on ordinary words.** The first live tool calls after 0.10.14 was installed were briefed on "marketplace" (34 notes), "handlers" (83), "pathlib" (2) and "brief" (31), each with unrelated notes. Frequency alone is not a test for a name. A word is now a subject only when the notes themselves write it as one: with a leading capital more often than in plain lower case, not counting places where it sits inside a path, domain, file name or identifier. Up to four candidates are checked per call, rarest first, and a word that fails is not looked up again in the session. On the live graph the partner, client and person names tried all still brief and the four words above do not.
+- **A heredoc's body was read as part of the command.** A shell command that pipes a script through `<<EOF` carried every identifier in that script into the lookup. The command is now cut at the heredoc marker.
+- **After a daemon restart in the middle of a turn, `PreToolUse` did nothing until the next prompt.** The handler returned early when the daemon had no in-memory session for the id, and a restarted daemon has none until `UserPromptSubmit` makes one. Seen live on 2026-11-11: a probe of the restarted daemon with the running session's id and a command naming a known subject returned an empty reply. Gates and the subject brief were both off for the rest of such a turn. The handler now makes the in-memory session itself, as `UserPromptSubmit` does.
+
+### Tests
+- `test/subject-brief.test.ts` (2 added, 14 in all): an ordinary word in the subject frequency band is rejected while a name in the same command is briefed; a heredoc body is not read.
+
 ## [0.10.14] - 2026-11-11
 
 ### Added

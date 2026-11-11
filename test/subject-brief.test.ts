@@ -52,6 +52,12 @@ describe("subject brief", () => {
     expect(words.filter((w) => w === "acmestay")).toHaveLength(1);
   });
 
+  it("does not read a heredoc's body", () => {
+    const text = toolInputSubjectText("Bash", { command: "python3 - <<'EOF'\nfrom pathlib import Path\nEOF", description: "Patch the Acmestay merge" });
+    expect(text).not.toContain("pathlib");
+    expect(text).toContain("Acmestay");
+  });
+
   it("reads the path of a file edit and not the text being written", () => {
     const text = toolInputSubjectText("Write", { file_path: "/x/acmestay_merge.py", content: "nicole wilburn harrison" });
     expect(text).toContain("acmestay");
@@ -99,6 +105,18 @@ describe("subject brief", () => {
     slow = false;
     expect(await buildSubjectBrief(store, s, "Bash", { command: "grep acmestay x" }, NOW)).toContain("acmestay");
   }, 5000);
+
+  it("an ordinary word in the right frequency band is not a subject", async () => {
+    const store = fakeStore({
+      handlers: many("the form handlers were", 83),
+      acmestay: PARTNER,
+    });
+    const s = new SessionState("s1", "s1");
+    const brief = await buildSubjectBrief(store, s, "Bash", { command: "cp dist/handlers/x.js /acmestay/" }, NOW);
+    expect(brief).toContain('"acmestay"');
+    expect(brief).not.toContain('"handlers"');
+    expect(s._subjectTermsRejected.has("handlers")).toBe(true);
+  });
 
   it("the ceiling follows the size of the graph", () => {
     expect(subjectDfCeiling(8720)).toBe(122);
