@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.14] - 2026-11-11
+
 ### Added
 - **Subject brief: the notes on a partner, client or person arrive when the assistant's own tool calls name them.** On 2026-11-11 the user's prompts for an hour were short and carried no topic, so prompt retrieval was quiet, as 0.10.9 intends. Every tool call in that hour named a partner whose feed had gone stale. The graph held 57 notes on that partner, one of them six days old saying the partner had shut the feed off and that an export had been asked for. The assistant never looked: it proved the feed was frozen from file dates, then drafted a note asking the partner what she had already answered. Retrieval followed the user's words, and the topic was in the work. Now `PreToolUse` reads the tool input (the command and its description, a file path, a search pattern; never the body of a file being written), and when it names a word that a small share of the stored memories mention, the hook returns the three newest notes on it plus the newest correction about it, dated, with a line saying to read them before diagnosing or drafting and to call `recall` for the rest (`src/engine/subject-brief.ts`).
   - What counts as a subject is measured, not listed. On the live graph (8,720 memories) partner and client names sit between 3 and 110 notes and a surname at 6, while tooling words (python 244, nginx 238, build 1,258) and the user's own site names (300 to 430) sit far above. A word is a subject when between 2 and about 1.4 percent of memories mention it (never fewer than 40 as the ceiling). Counts are cached for six hours; a word found too common or unknown is not looked up again in the session.
