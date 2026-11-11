@@ -408,7 +408,20 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((err) => {
-  log.error("[mcp-client] fatal:", err);
-  process.exit(1);
-});
+// Start only when run as the client, never when a test imports this module
+// for one of its helpers. Two test files do that, and until 0.10.16 each
+// import started a real client inside the test worker: it attached to the
+// developer's live daemon, and whenever the repo was a version ahead of the
+// installed plugin (every release, between the bump and the install) it
+// asked that daemon to supersede. The daemon then exited when the worker
+// did, mid-session, and the two live integration files that ran after it
+// found no socket and skipped. The entry-point test is the test runner's own
+// flag because this file also ships bundled as CJS, where import.meta is not
+// a reliable way to ask "am I the entry point".
+export const AUTOSTART = !process.env.VITEST;
+if (AUTOSTART) {
+  main().catch((err) => {
+    log.error("[mcp-client] fatal:", err);
+    process.exit(1);
+  });
+}

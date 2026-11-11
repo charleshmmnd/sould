@@ -57,3 +57,4 @@ export declare function decideOrphanAction(activeClients: number | undefined): "
 export declare const __testing: {
     compareSemver: (a: string, b: string) => number;
 };
+export declare const AUTOSTART: boolean;
