@@ -4,6 +4,16 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+### Added
+- **Subject brief: the notes on a partner, client or person arrive when the assistant's own tool calls name them.** On 2026-11-11 the user's prompts for an hour were short and carried no topic, so prompt retrieval was quiet, as 0.10.9 intends. Every tool call in that hour named a partner whose feed had gone stale. The graph held 57 notes on that partner, one of them six days old saying the partner had shut the feed off and that an export had been asked for. The assistant never looked: it proved the feed was frozen from file dates, then drafted a note asking the partner what she had already answered. Retrieval followed the user's words, and the topic was in the work. Now `PreToolUse` reads the tool input (the command and its description, a file path, a search pattern; never the body of a file being written), and when it names a word that a small share of the stored memories mention, the hook returns the three newest notes on it plus the newest correction about it, dated, with a line saying to read them before diagnosing or drafting and to call `recall` for the rest (`src/engine/subject-brief.ts`).
+  - What counts as a subject is measured, not listed. On the live graph (8,720 memories) partner and client names sit between 3 and 110 notes and a surname at 6, while tooling words (python 244, nginx 238, build 1,258) and the user's own site names (300 to 430) sit far above. A word is a subject when between 2 and about 1.4 percent of memories mention it (never fewer than 40 as the ceiling). Counts are cached for six hours; a word found too common or unknown is not looked up again in the session.
+  - Each subject is briefed once per session, the rarest one or two words per call, at most 16 briefs. Compaction clears the record, because the brief left with the window. A prompt with no retrieval signal re-arms subjects briefed two or more user turns earlier. Notes saved during the session are left out.
+  - It cannot hold up or fail a tool call: the lookup has one second, a lookup that runs out of time marks nothing (so the next call still briefs, from the cache it warmed), and any error returns no brief. On the call where a brief is returned it takes the place of the loop nudge and the already-retrieved notice. Measured on the live graph: about 600 ms the first time a command full of new words is seen, 0 to 130 ms after.
+  - `SOULD_SUBJECT_BRIEF=0` turns it off. `scripts/diag-subject-brief.mjs "<command>"` shows, read-only, the brief a command would get; `scripts/diag-subject-df.mjs word ...` shows how many memories mention a word.
+
+### Tests
+- `test/subject-brief.test.ts` (12): subject words taken from a command and tooling words left out; a file edit read by its path only; the newest notes briefed first; a common word and an unknown word both silent and not looked up twice; the newest correction carried along; a timed-out lookup marking nothing; once per session, again after compaction, again after a no-signal prompt two turns on; this session's notes left out; the memory tools' own calls and the off switch; a throwing and a hanging store.
+
 ## [0.10.13] - 2026-11-09
 
 ### Changed

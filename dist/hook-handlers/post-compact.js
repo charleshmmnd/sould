@@ -9,6 +9,7 @@
 import { makeHookOutput } from "../http-api.js";
 import { assembleContextString } from "../context-assembler.js";
 import { log } from "../engine/log.js";
+import { resetSubjectBriefs } from "../engine/subject-brief.js";
 export async function handlePostCompact(state, payload) {
     const sessionId = payload.session_id ?? "default";
     const session = state.getSession(sessionId);
@@ -20,6 +21,8 @@ export async function handlePostCompact(state, payload) {
     session.injectedSections.clear();
     session.tier0Delivered.clear();
     session._prevTurnsDelivered = false;
+    // Subject briefs went with the window too: brief each subject again.
+    resetSubjectBriefs(session);
     // Re-retrieve context from the graph using the last user query
     // This rebuilds what the model lost during compaction
     const query = session.lastUserText;

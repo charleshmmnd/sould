@@ -10,6 +10,7 @@ import { swallow } from "../engine/errors.js";
 import { runGates } from "../engine/hooks/gate-registry.js";
 import { commitKnowledge } from "../engine/commit.js";
 import { countToolCallsSinceText, deriveTranscriptPath } from "../engine/transcript-reader.js";
+import { buildSubjectBrief } from "../engine/subject-brief.js";
 import { homedir } from "node:os";
 import { readdirSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -105,6 +106,16 @@ export async function handlePreToolUse(state, payload) {
             session._pushNeedsCi = next.needsCi;
         }
     }
+    // Subject brief (0.10.14): the first tool call that names a subject the
+    // graph holds notes on gets the latest of those notes. It takes the place of
+    // the loop nudge and the recall notice on that one call (it carries facts,
+    // they carry advice, and either fires again on a later call), and is
+    // returned at the end so the artifact and subagent tracking below still
+    // run. Fails open.
+    const subjectBrief = await buildSubjectBrief(state.store, session, toolName, payload.tool_input);
+    if (subjectBrief) {
+        log.info(`[subject-brief] session=${sessionId} tool=${toolName} chars=${subjectBrief.length}`);
+    }
     // Planning gate: nudge when the model is LOOPING — calling tools without
     // producing any output — not merely when a turn has needed a lot of tools.
     //
@@ -132,7 +143,7 @@ export async function handlePreToolUse(state, payload) {
         || deriveTranscriptPath(session.sessionId, payload.cwd ?? process.cwd(), homedir());
     const sinceText = countToolCallsSinceText(transcriptPath);
     session.toolCallsSinceLastText = sinceText; // keep the field truthful for observers
-    if (sinceText > session.toolLimit && !session.softInterrupted) {
+    if (!subjectBrief && sinceText > session.toolLimit && !session.softInterrupted) {
         session.softInterrupted = true;
         log.debug(`Tool loop soft interrupt: ${sinceText} calls since last text (limit ${session.toolLimit}, ${session.toolCallCount} this turn)`);
         return makeHookOutput("PreToolUse", `[Sould] Remember your tier0 directives are important to the user and make you more helpful. ` +
@@ -142,7 +153,7 @@ export async function handlePreToolUse(state, payload) {
     }
     // Redundant recall detection: if user prompt was already retrieved via
     // graphTransformContext, block manual recall with similar query
-    if (toolName.includes("recall") && session.lastRetrievalSummary) {
+    if (!subjectBrief && toolName.includes("recall") && session.lastRetrievalSummary) {
         const toolInput = payload.tool_input;
         const recallQuery = toolInput?.query;
         if (recallQuery && session.lastRetrievalSummary) {
@@ -247,5 +258,5 @@ export async function handlePreToolUse(state, payload) {
             }
         }
     }
-    return {};
+    return subjectBrief ? makeHookOutput("PreToolUse", subjectBrief) : {};
 }

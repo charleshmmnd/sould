@@ -161,6 +161,15 @@ export class SessionState {
   /** Prefetch promise for previous-session turns — fires at session start, awaited in ensureRecentTurns. */
   _prevTurnsPrefetch?: Promise<{ role: string; text: string; tool_name?: string; timestamp: string }[]>;
 
+  // Subject brief (0.10.14, engine/subject-brief.ts)
+  /** When this in-memory session object was made; notes saved after it are already in the window. */
+  readonly createdAtMs = Date.now();
+  /** Subject word -> the user turn it was briefed on. Cleared by PostCompact. */
+  readonly _subjectsBriefed = new Map<string, number>();
+  /** Words looked up and found too common or unknown; never looked up again this session. */
+  readonly _subjectTermsRejected = new Set<string>();
+  _subjectBriefCount = 0;
+
   constructor(sessionId: string, sessionKey: string) {
     this.sessionId = sessionId;
     this.sessionKey = sessionKey;

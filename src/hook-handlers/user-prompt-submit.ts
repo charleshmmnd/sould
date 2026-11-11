@@ -20,6 +20,8 @@ import { countActionablePendingWork } from "../tools/pending-work.js";
 import { enforceInlineCeiling, resolveHookInlineMaxChars } from "../engine/inline-budget.js";
 import { isHarnessNotification } from "../engine/harness-prompt.js";
 import { ensureSessionPillars } from "../engine/session-pillars.js";
+import { hasRetrievalSignal } from "../engine/stopwords.js";
+import { rearmSubjectBriefs } from "../engine/subject-brief.js";
 
 
 /** Wrap raw sould context in a system-reminder block. Claude Code's harness
@@ -139,6 +141,15 @@ export async function handleUserPromptSubmit(
   }
 
   session.lastUserText = userPrompt;
+
+  // 0.10.14: a prompt that names no topic ("fix it", "UPDATE THE SITE") gets
+  // no retrieval, by design. It is also what a user sends when the work has
+  // gone wrong, so let the next tool call that names a subject be briefed
+  // again (engine/subject-brief.ts).
+  if (!hasRetrievalSignal(userPrompt)) {
+    const rearmed = rearmSubjectBriefs(session);
+    if (rearmed > 0) log.debug(`UserPromptSubmit: no-signal prompt, re-armed ${rearmed} subject brief(s)`);
+  }
 
   // Prefetch previous-session turns concurrently with pipeline (5s+ query)
   if (state.store.isAvailable() && !session._prevTurnsPrefetch && session._cachedPrevTurns === undefined) {

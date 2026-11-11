@@ -109,6 +109,13 @@ export declare class SessionState {
         tool_name?: string;
         timestamp: string;
     }[]>;
+    /** When this in-memory session object was made; notes saved after it are already in the window. */
+    readonly createdAtMs: number;
+    /** Subject word -> the user turn it was briefed on. Cleared by PostCompact. */
+    readonly _subjectsBriefed: Map<string, number>;
+    /** Words looked up and found too common or unknown; never looked up again this session. */
+    readonly _subjectTermsRejected: Set<string>;
+    _subjectBriefCount: number;
     constructor(sessionId: string, sessionKey: string);
     /** Reset per-turn counters at the start of each prompt. */
     resetTurn(): void;
