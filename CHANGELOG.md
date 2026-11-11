@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.15] - 2026-11-11
+
 ### Fixed
 - **The subject brief fired on ordinary words.** The first live tool calls after 0.10.14 was installed were briefed on "marketplace" (34 notes), "handlers" (83), "pathlib" (2) and "brief" (31), each with unrelated notes. Frequency alone is not a test for a name. A word is now a subject only when the notes themselves write it as one: with a leading capital more often than in plain lower case, not counting places where it sits inside a path, domain, file name or identifier. Up to four candidates are checked per call, rarest first, and a word that fails is not looked up again in the session. On the live graph the partner, client and person names tried all still brief and the four words above do not.
 - **A heredoc's body was read as part of the command.** A shell command that pipes a script through `<<EOF` carried every identifier in that script into the lookup. The command is now cut at the heredoc marker.
