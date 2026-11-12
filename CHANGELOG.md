@@ -4,6 +4,8 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.16] - 2026-11-11
+
 ### Fixed
 - **Running the tests told the developer's live daemon to step down.** `src/mcp-client/index.ts` called `main()` at module load, and two test files import it for helpers (`test/mcp-client-supersede.test.ts`, `test/v085-qa-regressions.test.ts`). Each import started a real client inside the test worker, attached to the live daemon at `~/.sould-daemon.sock`. Whenever the repo was a version ahead of the installed plugin (every release, between the bump and the install) that client called `meta.requestSupersede`, the daemon logged "supersede flagged" and exited when the worker did. Hooks then reported the daemon unreachable in the open session, and the two live integration files found no socket and skipped their 20 tests, which is why the README badge for 0.10.15 reads 1997. Proven on 2026-11-11 against a fresh daemon: a control test left the flag count unchanged, `test/mcp-client-supersede.test.ts` alone raised it by one and the daemon was gone afterwards. The client now starts only outside the test runner (`AUTOSTART`). After the fix a full run against a live daemon passes 2019 of 2019 with none skipped, the daemon keeps its pid and no flag is logged.
 
