@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { SessionState } from "../src/engine/state.js";
 import {
   buildSubjectBrief, extractSubjectCandidates, toolInputSubjectText, rearmSubjectBriefs,
@@ -23,7 +26,7 @@ function fakeStore(notes: Record<string, Array<{ text: string; created_at: strin
         .filter((r) => !sql.includes("[CORRECTION]") || r.text.startsWith("[CORRECTION]"))
         .filter((r) => new Date(r.created_at) < before)
         .sort((a, z) => z.created_at.localeCompare(a.created_at))
-        .slice(0, sql.includes("[CORRECTION]") ? 1 : 3)
+        .slice(0, sql.includes("[CORRECTION]") ? 1 : 12)
         .map((r) => ({ id: `memory:${r.text}`, ...r })) as T[];
     },
   };
@@ -34,8 +37,8 @@ const many = (word: string, n: number) =>
 
 const PARTNER = [
   { text: "Acmestay told us on 5 Nov that they shut the feed off; we asked for an export instead.", created_at: "2026-11-05T23:10:00Z" },
-  { text: "Acmestay feed joined in August.", created_at: "2026-08-04T00:00:00Z" },
-  { text: "Acmestay contact is the partnerships lead.", created_at: "2026-09-01T00:00:00Z" },
+  { text: "The Acmestay feed joined in August.", created_at: "2026-08-04T00:00:00Z" },
+  { text: "Our Acmestay contact is the partnerships lead.", created_at: "2026-09-01T00:00:00Z" },
   { text: "Acmestay first payout note.", created_at: "2026-07-01T00:00:00Z" },
 ];
 
@@ -118,6 +121,46 @@ describe("subject brief", () => {
     expect(s._subjectTermsRejected.has("handlers")).toBe(true);
   });
 
+  it("a capital at the start of a sentence does not make a word a name", async () => {
+    const store = fakeStore({ according: [
+      { text: "According to the log it ran twice.", created_at: "2026-10-01T00:00:00Z" },
+      { text: "[FACT] According to him, yes.", created_at: "2026-10-02T00:00:00Z" },
+    ] });
+    expect(await buildSubjectBrief(store, new SessionState("s1", "s1"), "Bash", { command: "echo according" }, NOW)).toBeNull();
+  });
+
+  it("shows the notes that share the call's other words first", async () => {
+    const store = fakeStore({ milltown: [
+      { text: "A family matter in Milltown, newest.", created_at: "2026-11-06T00:00:00Z" },
+      { text: "Another family note about Milltown.", created_at: "2026-11-05T00:00:00Z" },
+      { text: "School research near Milltown.", created_at: "2026-11-04T00:00:00Z" },
+      { text: "The Milltown painters page listed a franchise as a directory.", created_at: "2026-10-01T00:00:00Z" },
+    ] });
+    const brief = await buildSubjectBrief(store, new SessionState("s1", "s1"), "Bash", { command: "curl https://example.test/milltown/painters/" }, NOW);
+    expect(brief!.indexOf("painters page")).toBeLessThan(brief!.indexOf("family matter"));
+    expect(brief).not.toContain("School research");
+  });
+
+  it("never shows a note carrying an excluded phrase", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sb-"));
+    writeFileSync(join(dir, "x.txt"), "# kept for the record only\nPRIVATE LEDGER\n");
+    process.env.SOULD_SUBJECT_BRIEF_EXCLUDE_FILE = join(dir, "x.txt");
+    try {
+      const store = fakeStore({ milltown: [
+        { text: "PRIVATE LEDGER 2026-11-06: something in Milltown.", created_at: "2026-11-06T00:00:00Z" },
+        { text: "[CORRECTION] PRIVATE LEDGER: a Milltown correction.", created_at: "2026-11-05T00:00:00Z" },
+        { text: "The Milltown plumbers page went live.", created_at: "2026-10-01T00:00:00Z" },
+      ] });
+      const brief = await buildSubjectBrief(store, new SessionState("s1", "s1"), "Bash", { command: "ls milltown" }, NOW);
+      expect(brief).toContain("plumbers page");
+      expect(brief).not.toContain("PRIVATE LEDGER");
+    } finally { delete process.env.SOULD_SUBJECT_BRIEF_EXCLUDE_FILE; }
+  });
+
+  it("does not read an agent's prompt", () => {
+    expect(toolInputSubjectText("Agent", { description: "Drain work", prompt: "analyze according to Acmestay" })).not.toContain("Acmestay");
+  });
+
   it("the ceiling follows the size of the graph", () => {
     expect(subjectDfCeiling(8720)).toBe(122);
     expect(subjectDfCeiling(300)).toBe(40);
@@ -149,12 +192,12 @@ describe("subject brief", () => {
   it("leaves out notes saved during this session", async () => {
     const s = new SessionState("s1", "s1");
     const store = fakeStore({ acmestay: [
-      { text: "Acmestay older note one.", created_at: "2026-08-04T00:00:00Z" },
-      { text: "Acmestay older note two.", created_at: "2026-09-04T00:00:00Z" },
+      { text: "An older Acmestay note one.", created_at: "2026-08-04T00:00:00Z" },
+      { text: "An older Acmestay note two.", created_at: "2026-09-04T00:00:00Z" },
       { text: "Acmestay saved a minute from now.", created_at: new Date(s.createdAtMs + 60_000).toISOString() },
     ] });
     const brief = await buildSubjectBrief(store, s, "Bash", { command: "grep acmestay x" }, NOW);
-    expect(brief).toContain("older note two");
+    expect(brief).toContain("note two");
     expect(brief).not.toContain("a minute from now");
   });
 

@@ -30,6 +30,9 @@
 import type { SessionState } from "./state.js";
 import { RATIONALE_STOPWORDS, isNoiseWord } from "./stopwords.js";
 import { swallow } from "./errors.js";
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 /** The slice of the store the brief needs; the real store and test fakes both fit. */
 export interface SubjectBriefStore {
@@ -45,6 +48,8 @@ const MAX_NEW_TERMS_PER_CALL = 12;
 const MAX_TERMS_PER_BRIEF = 2;
 const MAX_TERMS_CHECKED = 4;
 const NOTES_PER_TERM = 3;
+/** Newest notes fetched per subject, from which the shown ones are picked. */
+const NOTE_POOL = 12;
 const NOTE_CHARS = 380;
 const MAX_BRIEFS_PER_SESSION = 16;
 const LOOKUP_BUDGET_MS = 1000;
@@ -67,6 +72,7 @@ const TOOLING_WORDS: ReadonlySet<string> = new Set([
   "directory","source","sources","target","public","private","static","assets","images","image",
   "style","styles","template","templates","layout","pages","website","sites","domain","server",
   "servers","client","clients","service","services","system","network","timeout","background",
+  "mozilla","chrome","safari","firefox","windows","linux","android","iphone","applewebkit","gecko","agent","verify",
   "description","command","commands","pattern","strict","sudo","chmod","mkdir","touch","echo",
   "grep","rsync","crontab","nohup","sleep","tail","head","curl","wget","https","http","html",
   "json","yaml","toml","xml","utf","ascii","charles","claude","home","tmp","mnt","scratchpad",
@@ -82,6 +88,24 @@ const TOOLING_WORDS: ReadonlySet<string> = new Set([
   "destinations","email","emails","inbox","mailbox","message","messages","subject","reply",
 ]);
 
+/**
+ * Phrases that keep a note out of every brief, one per line in
+ * ~/.sould/subject-brief-exclude.txt (lines starting with # are comments).
+ * For notes that are kept for the record and should never surface because a
+ * tool call happened to share a word with them. Read at most once a minute.
+ */
+let excludeCache: { at: number; phrases: string[] } | null = null;
+export function excludedPhrases(now: number = Date.now()): string[] {
+  if (excludeCache && now - excludeCache.at < 60_000) return excludeCache.phrases;
+  let phrases: string[] = [];
+  try {
+    const file = process.env.SOULD_SUBJECT_BRIEF_EXCLUDE_FILE ?? join(homedir(), ".sould", "subject-brief-exclude.txt");
+    phrases = readFileSync(file, "utf8").split(/\r?\n/).map((l) => l.trim().toLowerCase()).filter((l) => l && !l.startsWith("#"));
+  } catch { /* no file: nothing excluded */ }
+  excludeCache = { at: now, phrases };
+  return phrases;
+}
+
 interface DfEntry { n: number; at: number }
 const dfCache = new Map<string, DfEntry>();
 let memoryTotal: { n: number; at: number } | null = null;
@@ -90,6 +114,7 @@ let memoryTotal: { n: number; at: number } | null = null;
 export function _resetSubjectBriefCaches(): void {
   dfCache.clear();
   memoryTotal = null;
+  excludeCache = null;
 }
 
 function enabled(): boolean {
@@ -116,7 +141,7 @@ export function toolInputSubjectText(toolName: string, toolInput: Record<string,
     text = pick("pattern", "path", "glob");
   } else {
     text = Object.entries(toolInput)
-      .filter(([k, v]) => typeof v === "string" && !/content|body|html|text|code|script|old_string|new_string/i.test(k))
+      .filter(([k, v]) => typeof v === "string" && !/content|body|html|text|code|script|old_string|new_string|prompt|message/i.test(k))
       .map(([, v]) => v as string).join(" ");
   }
   return text.slice(0, INPUT_SCAN_CHARS);
@@ -220,7 +245,8 @@ async function brief(
   if (toolName.includes("sould")) return null;
   if (session._subjectBriefCount >= MAX_BRIEFS_PER_SESSION) return null;
 
-  const fresh = extractSubjectCandidates(toolInputSubjectText(toolName, toolInput))
+  const named = extractSubjectCandidates(toolInputSubjectText(toolName, toolInput));
+  const fresh = named
     .filter((w) => !session._subjectTermsRejected.has(w) && !session._subjectsBriefed.has(w))
     .slice(0, MAX_NEW_TERMS_PER_CALL);
   if (fresh.length === 0) return null;
@@ -231,7 +257,7 @@ async function brief(
   // call that names the subject gets the brief.
   let found: Found | null = null;
   try {
-    found = await withBudget(lookUp(store, session, fresh, now), LOOKUP_BUDGET_MS, null);
+    found = await withBudget(lookUp(store, session, fresh, named, now), LOOKUP_BUDGET_MS, null);
   } catch (e) {
     swallow.warn("subject-brief:lookup", e);
     return null;
@@ -246,8 +272,8 @@ async function brief(
 interface Found { terms: string[]; text: string | null }
 
 /**
- * True when the notes write the word as a name: with a leading capital more
- * often than in plain lower case. Occurrences inside a path, domain, file
+ * True when the notes write the word as a name: with a leading capital in
+ * mid-sentence more often than in plain lower case. Occurrences inside a path, domain, file
  * name or identifier (whimstay.com, ingest_whimstay.py) say nothing either
  * way and are not counted.
  */
@@ -261,13 +287,18 @@ export function writtenAsName(word: string, rows: Array<{ text: string }>): bool
       if (/[._/\\@=-]/.test(m[1]) || /[._/\\(=-]/.test(m[3]) && m[3] !== "." ) continue;
       if (m[3] === "." && /[a-z]/i.test(text[(m.index ?? 0) + m[0].length] ?? "")) continue;
       const first = m[2][0];
-      if (first === first.toUpperCase()) capital += 1; else lower += 1;
+      if (first !== first.toUpperCase()) { lower += 1; continue; }
+      // A capital at the start of a sentence proves nothing ("According to
+      // ..." briefed "according" on a live call). Only one in mid-sentence counts.
+      const lead = text.slice(0, (m.index ?? 0) + m[1].length).replace(/["'(\s]+$/, "");
+      if (lead === "" || /[.!?:\]]$/.test(lead)) continue;
+      capital += 1;
     }
   }
   return capital >= 1 && capital > lower;
 }
 
-async function lookUp(store: SubjectBriefStore, session: SessionState, fresh: string[], now: number): Promise<Found | null> {
+async function lookUp(store: SubjectBriefStore, session: SessionState, fresh: string[], named: string[], now: number): Promise<Found | null> {
   const total = await memoryCount(store, now);
   const ceiling = subjectDfCeiling(total);
   const dfs = await Promise.all(fresh.map(async (w) => ({ w, n: await documentFrequency(store, w, now) })));
@@ -288,9 +319,9 @@ async function lookUp(store: SubjectBriefStore, session: SessionState, fresh: st
   for (const { w, n } of subjects.slice(0, MAX_TERMS_CHECKED)) {
     if (sections.length >= MAX_TERMS_PER_BRIEF) break;
     const where = `text @1@ $t AND ${LIVE} AND created_at < $before`;
-    const [rows, corrections] = await Promise.all([
+    const [pool, corrections] = await Promise.all([
       store.queryFirst<NoteRow>(
-        `SELECT id, text, created_at FROM memory WHERE ${where} ORDER BY created_at DESC LIMIT ${NOTES_PER_TERM}`,
+        `SELECT id, text, created_at FROM memory WHERE ${where} ORDER BY created_at DESC LIMIT ${NOTE_POOL}`,
         { t: w, before }),
       // The newest correction about the subject rides along even when newer
       // notes have pushed it out of the top few: it is the note that was
@@ -303,9 +334,23 @@ async function lookUp(store: SubjectBriefStore, session: SessionState, fresh: st
     // "marketplace" 34, both briefed on the first live call, both noise).
     // A subject is a name, and the notes show it: they write it with a
     // capital in the middle of a sentence.
-    if (!writtenAsName(w, rows)) { session._subjectTermsRejected.add(w); continue; }
+    if (!writtenAsName(w, pool)) { session._subjectTermsRejected.add(w); continue; }
+    const excluded = excludedPhrases();
+    const allowed = (r: NoteRow) => !excluded.some((x) => String(r.text ?? "").toLowerCase().includes(x));
+    // A town or a first name has notes about several unrelated things. Show
+    // the ones that are about this work: those that also mention the other
+    // words of the call come first, newest first within a tie. (A check of a
+    // painters page in one town was briefed with family notes that happen to
+    // name the town.)
+    const others = named.filter((x) => x !== w);
+    const rows = pool.filter(allowed)
+      .map((r, i) => ({ r, i, hits: others.filter((x) => String(r.text ?? "").toLowerCase().includes(x)).length }))
+      .sort((a, b) => b.hits - a.hits || a.i - b.i)
+      .slice(0, NOTES_PER_TERM)
+      .map((x) => x.r);
+    if (rows.length === 0) { session._subjectTermsRejected.add(w); continue; }
     terms.push(w);
-    const lines = [...rows, ...corrections]
+    const lines = [...rows, ...corrections.filter(allowed)]
       .filter((r) => { const k = String(r.id); if (seenNotes.has(k)) return false; seenNotes.add(k); return true; })
       .map((r) => `- ${day(r.created_at)} ${clip(r.text, NOTE_CHARS)}`);
     if (lines.length > 0) sections.push(`"${w}" (${n} notes in memory), newest first:\n${lines.join("\n")}`);

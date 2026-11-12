@@ -8,6 +8,7 @@ export declare const SUBJECT_MIN_DF = 2;
 /** Ceiling as a share of the memory table, with a floor for small graphs. */
 export declare const SUBJECT_MAX_DF_SHARE = 0.014;
 export declare const SUBJECT_MAX_DF_FLOOR = 40;
+export declare function excludedPhrases(now?: number): string[];
 /** @internal test hook */
 export declare function _resetSubjectBriefCaches(): void;
 /**
@@ -25,8 +26,8 @@ export declare function subjectDfCeiling(total: number): number;
  */
 export declare function buildSubjectBrief(store: SubjectBriefStore, session: SessionState, toolName: string, toolInput: Record<string, unknown> | undefined, now?: number): Promise<string | null>;
 /**
- * True when the notes write the word as a name: with a leading capital more
- * often than in plain lower case. Occurrences inside a path, domain, file
+ * True when the notes write the word as a name: with a leading capital in
+ * mid-sentence more often than in plain lower case. Occurrences inside a path, domain, file
  * name or identifier (whimstay.com, ingest_whimstay.py) say nothing either
  * way and are not counted.
  */
