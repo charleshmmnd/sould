@@ -19,6 +19,14 @@ import type { EmbeddingService } from "./embeddings.js";
  */
 export declare const BOOTSTRAP_VERSION = "0.4.1";
 /**
+ * Version tag for the bootstrap IDENTITY_CHUNKS only. Kept apart from
+ * BOOTSTRAP_VERSION so a wording change in the identity chunks re-seeds them
+ * without re-creating Tier 0 core entries the user has since retired.
+ * Bump whenever IDENTITY_CHUNKS text changes, a product rename included:
+ * the 0.4.1 rows still carried the two earlier product names.
+ */
+export declare const BOOTSTRAP_IDENTITY_VERSION = "2026-11-13";
+/**
  * Seed cognitive bootstrap knowledge on first run.
  * Idempotent — checks for existing entries before seeding.
  */

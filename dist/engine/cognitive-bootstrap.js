@@ -6,6 +6,14 @@ const BOOTSTRAP_SOURCE = "cognitive_bootstrap";
  * seeds and re-seed on upgrade.
  */
 export const BOOTSTRAP_VERSION = "0.4.1";
+/**
+ * Version tag for the bootstrap IDENTITY_CHUNKS only. Kept apart from
+ * BOOTSTRAP_VERSION so a wording change in the identity chunks re-seeds them
+ * without re-creating Tier 0 core entries the user has since retired.
+ * Bump whenever IDENTITY_CHUNKS text changes, a product rename included:
+ * the 0.4.1 rows still carried the two earlier product names.
+ */
+export const BOOTSTRAP_IDENTITY_VERSION = "2026-11-13";
 // ── Tier 0 Core Memory: imperative reflexes loaded every turn ────────────
 const CORE_ENTRIES = [
     {
@@ -216,7 +224,7 @@ async function seedCognitiveBootstrapImpl(store, embeddings) {
         const vrows = await store.queryFirst(`SELECT count() AS count FROM identity_chunk
          WHERE source = $source AND bootstrap_version = $v
            AND (active = true OR active IS NONE)
-         GROUP ALL`, { source: BOOTSTRAP_SOURCE, v: BOOTSTRAP_VERSION });
+         GROUP ALL`, { source: BOOTSTRAP_SOURCE, v: BOOTSTRAP_IDENTITY_VERSION });
         const currentVersionSeeded = (vrows[0]?.count ?? 0) > 0;
         if (!currentVersionSeeded) {
             // Clear ALL prior bootstrap identity chunks (any version, including
@@ -237,7 +245,7 @@ async function seedCognitiveBootstrapImpl(store, embeddings) {
                         data: {
                             agent_id: "sould",
                             source: BOOTSTRAP_SOURCE,
-                            bootstrap_version: BOOTSTRAP_VERSION,
+                            bootstrap_version: BOOTSTRAP_IDENTITY_VERSION,
                             chunk_index: i,
                             text: chunk.text,
                             embedding: vec,

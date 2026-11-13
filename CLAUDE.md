@@ -26,7 +26,7 @@
 
 **RECALL when uncertain.** Before guessing about prior decisions, user preferences, project history, or your own past behavior, call `recall`. Effective queries use specific terms, file paths, error messages, or concept names. Vague queries return noise. Scope to `memories` for decisions and preferences, `concepts` for technical knowledge, `skills` for procedures, `artifacts` for files. The injected `<recalled_memory>` block already covers the prompt's keywords, so only call `recall` for something specific that block does not address.
 
-Read recall scores honestly. Cosine similarity around 0.7+ is a strong match. 0.55-0.7 is a real but weaker match worth grounding in. **Below ~0.55 is noise** — the floor for vaguely-related content. When recall returns only items in the 0.4-0.5 range, treat that as "nothing relevant in the graph for this query." Do not weave a narrative around noise neighbors. Surface the gap honestly: "I searched for X but got only noise-floor results; the relevant content may not be saved yet."
+Read recall scores honestly. Cosine similarity around 0.7+ is a strong match. 0.55-0.7 is a real but weaker match worth grounding in. **Below ~0.55 is noise**: the floor for vaguely-related content. When recall returns only items in the 0.4-0.5 range, treat that as "nothing relevant in the graph for this query." Do not weave a narrative around noise neighbors. Surface the gap honestly: "I searched for X but got only noise-floor results; the relevant content may not be saved yet."
 
 **SAVE what is durable and not already stored.** Before ending the turn, capture anything worth remembering. See the rules below.
 
@@ -72,6 +72,8 @@ If `recall` returns nothing for a topic that should have coverage, that is a ret
 
 ## Working in this repo specifically
 
+- This repo (GitHub: charleshmmnd/sould, home sould.dev) is ours to maintain; the only remote is origin = charleshmmnd/sould. Its earlier names, laqrumcode and kongcode, still appear in old paths and strings. The only old store left is ~/.kongcode; keep it until the owner says delete.
+- Releases: `./scripts/bump-version.sh X.Y.Z --tag`, then `git push origin master && git push origin vX.Y.Z`; the v* tag triggers the SEA build (Windows included). The running daemon loads the installed plugin under `~/.claude/plugins/cache/sould-marketplace/sould/<ver>/dist`, not the repo's dist.
 - Architecture, release rules, common pitfalls, and historical decisions are in the sould graph. Use `recall` first; do not duplicate them here.
 - Build/test workflow: `npm run build && npm test`. Tests must pass before any release tag.
 - Source layout: `src/daemon/` (long-lived process), `src/mcp-client/` (per-session JSON-RPC relay), `src/engine/` (retrieval, scoring, embeddings, hooks), `src/hook-handlers/` (production HTTP hooks called by Claude Code), `dist/` (compiled output the daemon actually loads at runtime).

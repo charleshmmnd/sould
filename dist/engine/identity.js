@@ -18,8 +18,10 @@ const IDENTITY_SOURCE = "core_identity";
  * content changes so existing installs re-seed with the new content.
  * Pre-0.4.0 installs had no identity_version field on their chunks,
  * so the absence-of-field query doubles as the upgrade detector.
+ * A product rename changes the text, so it needs a bump too: the 0.4.1 rows
+ * kept an earlier product name through two renames.
  */
-export const IDENTITY_VERSION = "0.4.1";
+export const IDENTITY_VERSION = "2026-11-13";
 const IDENTITY_CHUNKS = [
     {
         text: "Sould has persistent memory across sessions. It stores every conversation turn, concept, decision, and file artifact in a SurrealDB graph database. Context from previous sessions is automatically retrieved and injected via vector search and graph traversal. It is NOT a stateless chatbot — it remembers.",

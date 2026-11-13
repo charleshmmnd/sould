@@ -5,8 +5,10 @@ import type { EmbeddingService } from "./embeddings.js";
  * content changes so existing installs re-seed with the new content.
  * Pre-0.4.0 installs had no identity_version field on their chunks,
  * so the absence-of-field query doubles as the upgrade detector.
+ * A product rename changes the text, so it needs a bump too: the 0.4.1 rows
+ * kept an earlier product name through two renames.
  */
-export declare const IDENTITY_VERSION = "0.4.1";
+export declare const IDENTITY_VERSION = "2026-11-13";
 export declare function seedIdentity(store: SurrealStore, embeddings: EmbeddingService): Promise<number>;
 /**
  * Version tag for user-identity chunks. The compound UNIQUE on identity_chunk

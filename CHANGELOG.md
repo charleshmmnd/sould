@@ -4,6 +4,11 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.17] - 2026-11-13
+
+### Fixed
+- **The session-start identity block still used the product's two earlier names.** Both identity seeders skip re-seeding when rows tagged with the current version exist, and neither version was bumped when the chunk text changed in the renames, so installs that predate them kept the old rows as current. `IDENTITY_VERSION` (`src/engine/identity.ts`) is now the date tag `2026-11-13` (a date, so the release sweep for the old version number never trips on it), and the bootstrap identity chunks have their own `BOOTSTRAP_IDENTITY_VERSION` (`src/engine/cognitive-bootstrap.ts`), so the next session start archives the old rows and seeds the current text. `BOOTSTRAP_VERSION` is unchanged on purpose: bumping it would re-create Tier 0 bootstrap entries that a user has since retired.
+
 ## [0.10.16] - 2026-11-11
 
 ### Fixed
