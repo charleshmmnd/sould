@@ -131,6 +131,9 @@ export class SessionState {
     _prevTurnsDelivered;
     /** Routines due at this session's start (0.10.5); re-sent on the first prompt. */
     _routinesNote;
+    /** Length of the directives section built for the current prompt; recalled
+     *  memory is fitted to what it leaves free (0.10.18). */
+    _sysSectionChars;
     /** Prefetch promise for previous-session turns — fires at session start, awaited in ensureRecentTurns. */
     _prevTurnsPrefetch;
     // Subject brief (0.10.14, engine/subject-brief.ts)

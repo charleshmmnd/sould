@@ -11,7 +11,7 @@ import type {
 } from "./types.js";
 import type { SurrealStore, VectorSearchResult, CoreMemoryEntry } from "./surreal.js";
 import { windowSoulText } from "./soul-text.js";
-import { planTier0Delivery, digestLine, tier0FullBudgetChars, resolveHookInlineMaxChars, TIER0_DIGEST_MAX, type Tier0Plan } from "./inline-budget.js";
+import { planTier0Delivery, digestLine, tier0FullBudgetChars, resolveHookInlineMaxChars, retrievalBudgetChars, fitByRelevance, TIER0_DIGEST_MAX, type Tier0Plan } from "./inline-budget.js";
 import type { EmbeddingService } from "./embeddings.js";
 import type { SessionState } from "./state.js";
 import { getPendingDirectives, clearPendingDirectives, getSessionContinuity, getSuppressedNodeIds } from "./cognitive-check.js";
@@ -1509,6 +1509,24 @@ async function formatContextMessage(
   // breakout protection and the labels.
   nodes = nodes.map((n) => (n.text ? { ...n, text: stripStructuralTags(n.text) } : n));
 
+  // 0.10.18: fit recalled items to the inline budget by relevance, before
+  // they are grouped by kind. The hook's tail cut is still the backstop, but
+  // it no longer decides what the model sees: the lowest-ranked items go, and
+  // the ranks of the ones that stay are unchanged (the kept set is a prefix
+  // of the score order, which is what [#N] and stageRetrieval are built on).
+  let droppedForBudget = 0;
+  if (nodes.length > 0) {
+    const ranked = [...nodes].sort((a, b) => (b.finalScore ?? 0) - (a.finalScore ?? 0));
+    const budget = retrievalBudgetChars(resolveHookInlineMaxChars(), session._sysSectionChars ?? 0, skillContext.length);
+    const fit = fitByRelevance(ranked, (n) => Math.min((n.text ?? "").length, MAX_ITEM_CHARS) + 70, budget);
+    droppedForBudget = fit.dropped;
+    if (fit.dropped > 0) {
+      const keep = new Set(fit.kept);
+      nodes = nodes.filter((n) => keep.has(n));
+      log.info(`[retrieval-fit] kept ${fit.kept.length} of ${ranked.length} recalled items in ${budget} chars`);
+    }
+  }
+
   const groups: Record<string, ScoredResult[]> = {};
   for (const n of nodes) {
     const isCausal = n.source?.startsWith("causal_");
@@ -1672,8 +1690,14 @@ async function formatContextMessage(
     );
   }
 
+  // 0.10.18: an item shown under TOP HITS is not repeated in its per-kind
+  // listing. The repeat was deliberate when the block had room; under the
+  // inline ceiling it spent up to 3,000 characters saying the same thing
+  // twice while other recalled items were cut.
+  const topHitIds = new Set(topHits.map((n) => String(n.id)));
   for (const key of sortedKeys) {
-    const items = groups[key];
+    const items = groups[key].filter((n) => !topHitIds.has(String(n.id)));
+    if (items.length === 0) continue;
     items.sort((a, b) => {
       const sa = a.finalScore ?? 0;
       const sb = b.finalScore ?? 0;
@@ -1704,6 +1728,10 @@ async function formatContextMessage(
       return `  - ${idxTag}${text}${scoreTag}${via}${age}`;
     });
     sections.push(`${label}:\n${formatted.join("\n")}`);
+  }
+
+  if (droppedForBudget > 0) {
+    sections.push(`(${droppedForBudget} lower-ranked recalled item${droppedForBudget === 1 ? "" : "s"} left out to fit the inline limit; call recall for more.)`);
   }
 
   // Injection manifest — tell the model what's already retrieved so it doesn't call recall redundantly
@@ -2067,6 +2095,8 @@ export async function graphTransformContext(
     }
     tier0ForSys = [...plan.full, ...plan.digest, ...plan.deferred];
     systemPromptSection = buildSystemPromptSection(session, tier0ForSys, plan);
+    // 0.10.18: recalled memory is fitted to what this section leaves free.
+    session._sysSectionChars = systemPromptSection?.length ?? 0;
     // Mark sections as injected so formatContextMessage() skips them (prevents duplication)
     if (systemPromptSection) {
       if (systemPromptSection.includes("GRAPH PILLARS")) session.injectedSections.add("pillars");

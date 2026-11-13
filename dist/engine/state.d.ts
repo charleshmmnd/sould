@@ -102,6 +102,9 @@ export declare class SessionState {
     _prevTurnsDelivered?: boolean;
     /** Routines due at this session's start (0.10.5); re-sent on the first prompt. */
     _routinesNote?: string;
+    /** Length of the directives section built for the current prompt; recalled
+     *  memory is fitted to what it leaves free (0.10.18). */
+    _sysSectionChars?: number;
     /** Prefetch promise for previous-session turns — fires at session start, awaited in ensureRecentTurns. */
     _prevTurnsPrefetch?: Promise<{
         role: string;

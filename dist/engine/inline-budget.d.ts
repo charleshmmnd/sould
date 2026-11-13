@@ -39,8 +39,45 @@ export declare const DEFAULT_HOOK_INLINE_MAX_CHARS = 7600;
 /** Smallest ceiling accepted from the environment; anything lower would not
  *  fit the wrapper legend plus a single directive. */
 export declare const MIN_HOOK_INLINE_MAX_CHARS = 2000;
-/** Share of the ceiling that one prompt may spend on full-text directives. */
+/** Share of the ceiling that one prompt may spend on full-text directives.
+ *  Lowering it gives recalled memory more room during a delivery cycle but
+ *  lengthens the cycle, and a graph near MAX_TIER0_CYCLE_PROMPTS then refuses
+ *  its next directive (tried at 0.35 and 0.45 for 0.10.18, both refused the
+ *  live-like set in tier0-admission.test.ts). Recalled memory is protected by
+ *  fitByRelevance below, not by this number. */
 export declare const TIER0_FULL_SHARE = 0.55;
+/** Characters held back from the retrieval budget for what is assembled
+ *  around it: the wrapper legend, the rationale line, section tags and the
+ *  trim marker. */
+export declare const RETRIEVAL_WRAPPER_RESERVE = 1100;
+/** Retrieval is never budgeted below this, however large the head is. */
+export declare const RETRIEVAL_MIN_BUDGET_CHARS = 1500;
+/** At most this much is held back for the skill and reflection blocks that
+ *  follow recalled memory; anything beyond it is theirs to lose first. */
+export declare const RETRIEVAL_TRAILER_RESERVE = 700;
+/** Characters recalled memory may use on one prompt, given what is already
+ *  spoken for ahead of it (directives) and behind it (skills, reflections). */
+export declare function retrievalBudgetChars(ceiling: number, headChars: number, trailerChars: number): number;
+export interface RelevanceFit<T> {
+    kept: T[];
+    /** Items left out because they did not fit. */
+    dropped: number;
+}
+/**
+ * Keep the most relevant items that fit `budgetChars`.
+ *
+ * `ranked` must already be sorted best first. The result is always a PREFIX
+ * of it, so an item's rank (and the [#N] handle derived from it) is the same
+ * before and after. The first `minKeep` items are kept even when they do not
+ * fit, so a prompt is never left without its best matches.
+ *
+ * This exists because the ceiling used to be enforced only by cutting the
+ * tail of the assembled text. Sections are grouped by kind, so the cut fell
+ * on whichever kind was listed last (past conversation) and not on what
+ * mattered least: a long, loosely related note at the head survived and the
+ * exact thing the user said the day before did not.
+ */
+export declare function fitByRelevance<T>(ranked: T[], cost: (item: T) => number, budgetChars: number, minKeep?: number): RelevanceFit<T>;
 /** At most this many already-delivered directives are re-sent as one-line
  *  reminders per prompt (highest priority first). With an 8 K cap, a digest
  *  of every directive would eat the whole budget on a mature graph; the

@@ -4,6 +4,18 @@ All notable changes to Sould are documented here. The 0.7.x series introduced th
 
 ## [Unreleased]
 
+## [0.10.18] - 2026-11-13
+
+### Fixed
+- **Recalled memory was cut by position, not by relevance, and most of it was cut.** The hook payload has a 7,600 character ceiling and was enforced only by trimming the tail of the assembled text. On the maintainer's graph the payload averaged 16,223 characters over 352 logged prompts, so about 9,000 characters were dropped per prompt. Recalled items are grouped by kind and past conversation is listed last, so the cut fell there: the user mentioned something he had told the assistant the day before, 21 items were retrieved, two long and loosely related notes were shown, and the turn that held the answer was trimmed. Recalled items are now fitted to the room the directives leave (`retrievalBudgetChars`, `fitByRelevance` in `src/engine/inline-budget.ts`, applied in `formatContextMessage`): the lowest-ranked items are left out, the best three always stay, the kept set is a prefix of the score order so `[#N]` handles do not shift, and a line says how many were left out. The tail cut remains as a backstop and now lands on the skill and reflection blocks.
+- **A top hit was printed twice.** An item under TOP HITS was repeated in its per-kind listing, up to 3,000 characters of repetition while other recalled items were being cut. It is now listed once.
+
+### Notes
+- The directive share (`TIER0_FULL_SHARE`) is unchanged at 0.55. Lowering it was tried at 0.35 and 0.45 and both made a graph near the cycle limit refuse its next directive.
+
+### Tests
+- `test/retrieval-fit.test.ts` (8): the fit keeps a prefix, drops from the low-ranked end, keeps the best three when nothing fits, and the budget subtracts the directives, a bounded trailer reserve and the wrapper, with a floor.
+
 ## [0.10.17] - 2026-11-13
 
 ### Fixed
